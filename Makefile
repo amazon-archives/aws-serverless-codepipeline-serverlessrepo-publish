@@ -15,6 +15,13 @@ PACKAGE_BUCKET ?= <bucket>
 
 # Stack name used when deploying the app for manual testing
 APP_STACK_NAME ?= aws-serverless-codepipeline-serverlessrepo-publish
+# GitHub owner.
+GITHUB_OWNER ?= awslabs
+# GitHub repo.
+GITHUB_REPO ?= aws-serverless-codepipeline-serverlessrepo-publish
+# Stack name used when deploying the app for manual testing
+# Name of stack that creates the CI/CD pipeline for testing and publishing this app
+CICD_STACK_NAME ?= cicd-$(GITHUB_REPO)
 
 PYTHON := $(shell /usr/bin/which python$(PY_VERSION))
 
@@ -26,6 +33,9 @@ clean:
 init:
 	$(PYTHON) -m pip install pipenv --user
 	pipenv sync --dev
+
+init-cicd:
+	pipenv run sam deploy --template-file $(TEMPLATE_DIR)/cicd.yml --stack-name $(CICD_STACK_NAME) --parameter-overrides GitHubOwner="$(GITHUB_OWNER)" GitHubRepo="$(GITHUB_REPO)" --capabilities CAPABILITY_IAM
 
 compile-app:
 	mkdir -p $(BUILD_DIR)

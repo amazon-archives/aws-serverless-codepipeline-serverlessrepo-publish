@@ -1,0 +1,223 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+Description: >
+  This template sets up the CI/CD infrastructure for a GitHub-based serverless application that is published to the AWS Serverless Application Repository. It includes
+
+  1. a CI CodeBuild project that verifies changes pushed to any GitHub branch (used as automated approval check of PRs).
+  2. a CD CodePipeline that triggers on changes to the publish branch, runs automated tests, and publishes a new version of the app to the AWS Serverless Application Repository.
+
+Parameters:
+  GitHubOwner:
+    Description: GitHub username owning the repo
+    Type: String
+  GitHubRepo:
+    Description: GitHub repo name
+    Type: String
+  GitHubOAuthToken:
+    Description: Name of SSM Parameter holding OAuth token used by CodePipeline to connect to GitHub
+    # TODO: Convert to SecureString once CFN supports it
+    Type: 'AWS::SSM::Parameter::Value<String>'
+    NoEcho: true
+    Default: GitHubOAuthToken
+
+  GitHubPublishBranch:
+    Description: Branch that should trigger the pipeline to test and publish to the Serverless Application Repository.
+    Type: String
+    Default: master
+
+Resources:
+  # CodeBuild project that triggers on any branch push and runs automated checks (used as automated approval check of PRs).
+  CICodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      ServiceRole: !GetAtt CICodeBuildRole.Arn
+      BadgeEnabled: true
+      Source:
+        Type: GITHUB
+        Location: !Sub https://github.com/${GitHubOwner}/${GitHubRepo}.git
+        GitCloneDepth: 1
+        ReportBuildStatus: true
+        Auth:
+          Type: OAUTH
+      Triggers:
+        Webhook: true
+      Artifacts:
+        Type: NO_ARTIFACTS
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/python:3.6.5
+        Type: LINUX_CONTAINER
+        EnvironmentVariables:
+        - Name: PACKAGE_BUCKET
+          Value: !Ref ArtifactBucket
+        - Name: AWS_DEFAULT_REGION
+          Value: !Sub ${AWS::Region}
+  CICodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - "codebuild.amazonaws.com"
+          Action:
+          - "sts:AssumeRole"
+      Path: /service-role/
+      Policies:
+      - PolicyName: CICodeBuildRolePolicy
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+          - Effect: Allow
+            Action:
+            - "logs:CreateLogGroup"
+            - "logs:CreateLogStream"
+            - "logs:PutLogEvents"
+            Resource:
+            - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/*
+          - Effect: Allow
+            Action:
+            - "s3:PutObject"
+            - "s3:GetObject"
+            - "s3:GetObjectVersion"
+            - "s3:ListBucket"
+            Resource:
+            - !Sub arn:${AWS::Partition}:s3:::${ArtifactBucket}
+            - !Sub arn:${AWS::Partition}:s3:::${ArtifactBucket}/*
+
+  # CD Pipeline for testing and publishing new versions of an app to the serverless application repository
+  PublishPipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      ArtifactStore:
+        Location: !Ref ArtifactBucket
+        Type: S3
+      RoleArn: !GetAtt PublishPipelineRole.Arn
+      Stages:
+      - Name: Source
+        Actions:
+        - Name: ApplicationSource
+          ActionTypeId:
+            Category: Source
+            Owner: ThirdParty
+            Provider: GitHub
+            Version: "1"
+          Configuration:
+            Owner: !Ref GitHubOwner
+            OAuthToken: !Ref GitHubOAuthToken
+            Repo: !Ref GitHubRepo
+            Branch: !Ref GitHubPublishBranch
+            PollForSourceChanges: false
+          OutputArtifacts:
+          - Name: SourceArtifact
+      - Name: Build
+        Actions:
+        - Name: ApplicationPackage
+          ActionTypeId:
+            Category: Build
+            Owner: AWS
+            Provider: CodeBuild
+            Version: "1"
+          Configuration:
+            ProjectName: !Ref PublishCodeBuildProject
+          InputArtifacts:
+          - Name: SourceArtifact
+          OutputArtifacts:
+          - Name: BuildArtifact
+      # TODO: publish new version to the repo
+      # - Name: Publish
+  ArtifactBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      LifecycleConfiguration:
+        Rules:
+        - ExpirationInDays: 30
+          Status: Enabled
+  PublishPipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - "codepipeline.amazonaws.com"
+          Action:
+          - "sts:AssumeRole"
+      Policies:
+      - PolicyName: PublishPipelineRolePolicy
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+          - Effect: Allow
+            Action:
+            - "s3:DeleteObject"
+            - "s3:GetObject"
+            - "s3:GetObjectVersion"
+            - "s3:ListBucket"
+            - "s3:PutObject"
+            - "s3:GetBucketPolicy"
+            Resource:
+            - !Sub arn:${AWS::Partition}:s3:::${ArtifactBucket}
+            - !Sub arn:${AWS::Partition}:s3:::${ArtifactBucket}/*
+          - Effect: Allow
+            Action:
+            - "codebuild:StartBuild"
+            - "codebuild:BatchGetBuilds"
+            Resource:
+            - !GetAtt PublishCodeBuildProject.Arn
+            - !Sub arn:${AWS::Partition}:codebuild:${AWS::Region}:${AWS::AccountId}:build/${PublishCodeBuildProject}:*
+  PublishCodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      ServiceRole: !GetAtt PublishCodeBuildRole.Arn
+      Source:
+        Type: CODEPIPELINE
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/python:3.6.5
+        Type: LINUX_CONTAINER
+        EnvironmentVariables:
+        - Name: PACKAGE_BUCKET
+          Value: !Ref ArtifactBucket
+        - Name: AWS_DEFAULT_REGION
+          Value: !Sub ${AWS::Region}
+  PublishCodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - "codebuild.amazonaws.com"
+          Action:
+          - "sts:AssumeRole"
+      Path: /service-role/
+      Policies:
+      - PolicyName: PublishCodeBuildRolePolicy
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+          - Effect: Allow
+            Action:
+            - "logs:CreateLogGroup"
+            - "logs:CreateLogStream"
+            - "logs:PutLogEvents"
+            Resource:
+            - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/*
+          - Effect: Allow
+            Action:
+            - "s3:PutObject"
+            - "s3:GetObject"
+            - "s3:GetObjectVersion"
+            - "s3:ListBucket"
+            Resource:
+            - !Sub arn:${AWS::Partition}:s3:::${ArtifactBucket}
+            - !Sub arn:${AWS::Partition}:s3:::${ArtifactBucket}/*

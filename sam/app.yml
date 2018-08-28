@@ -6,7 +6,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: app/
-      Handler: handlers.handle_request
+      Handler: handlers.publish
       Runtime: python3.6
       Tracing: Active
       MemorySize: 512

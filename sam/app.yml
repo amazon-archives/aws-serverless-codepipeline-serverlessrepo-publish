@@ -1,0 +1,15 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+
+Resources:
+  ServerlessRepoPublish:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: app/
+      Handler: handlers.handle_request
+      Runtime: python3.6
+      Tracing: Active
+      MemorySize: 512
+      Timeout: 300
+      Policies:
+        - ServerlessRepoReadWriteAccessPolicy: {}

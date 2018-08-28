@@ -11,6 +11,7 @@ pytest = "*"
 "flake8" = "*"
 pydocstyle = "*"
 pytest-cov = "*"
+aws-sam-cli = "*"
 
 [requires]
 python_version = "3.6"

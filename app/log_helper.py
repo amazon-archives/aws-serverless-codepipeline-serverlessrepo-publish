@@ -8,7 +8,7 @@ import config
 
 
 # intentionally breaking naming convention to match logger.getLogger()
-def getLogger(name):  # pylint: disable=invalid-name
+def getLogger(name):
     """Initialize logger with given name.
 
     Sets log level based on configured value.

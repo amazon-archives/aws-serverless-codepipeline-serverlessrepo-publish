@@ -6,7 +6,7 @@ import log_helper
 LOGGER = log_helper.getLogger(__name__)
 
 
-def handle_requeset(request, context):
+def handle_request(request, context):
     """Publish to Serverless Apps Repo.
 
     CodePipeline invokes the lambda to publish an application

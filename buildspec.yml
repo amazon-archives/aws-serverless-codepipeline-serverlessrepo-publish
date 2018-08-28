@@ -6,7 +6,6 @@ phases:
   build:
     commands:
     - make
-    - make package
 artifacts:
   files:
     - dist/packaged-app.yml

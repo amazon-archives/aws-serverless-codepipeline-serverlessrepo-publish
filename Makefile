@@ -21,7 +21,7 @@ GITHUB_OWNER ?= awslabs
 GITHUB_REPO ?= aws-serverless-codepipeline-serverlessrepo-publish
 # Stack name used when deploying the app for manual testing
 # Name of stack that creates the CI/CD pipeline for testing and publishing this app
-CICD_STACK_NAME ?= cicd-aws-serverless-codepipeline-serverlessrepo-publish
+CICD_STACK_NAME ?= cicd-$(GITHUB_REPO)
 
 PYTHON := $(shell /usr/bin/which python$(PY_VERSION))
 

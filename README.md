@@ -4,7 +4,7 @@ This is a serverless app that publishes applications to AWS Serverless Applicati
 
 ## Architecture
 
-![App Architecture](https://github.com/awslabs/aws-serverless-codepipeline-serverless-publish/raw/master/app-architecture.png)
+![App Architecture](https://github.com/awslabs/aws-serverless-codepipeline-serverlessrepo-publish/raw/master/app-architecture.png)
 
 1. App has a single Lambda function ServerlessRepoPublish lambda.
 1. ServerlessRepoPublish lambda is invoked by CodePipeline as part of the Invoke Action of a pipeline.

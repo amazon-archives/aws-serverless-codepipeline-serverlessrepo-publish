@@ -1,15 +1,63 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: 'AWS::Serverless-2016-10-31'
 
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: aws-serverless-codepipeline-serverlessrepo-publish
+    Description: >-
+      This serverless application publishes applications to AWS Serverless Application Repository. This app creates
+      a Lambda function that a user could then use as an Invoke action target in their CodePipeline.
+    Author: Simon Meng
+    # SPDX License Id, e.g., MIT, MIT-0, Apache-2.0. See https://spdx.org/licenses for more details
+    SpdxLicenseId: MIT
+    # paths are relative to .aws-sam/build directory
+    LicenseUrl: ../../LICENSE
+    ReadmeUrl: ../../README.md
+    Labels: [serverless, codepipeline, serverlessrepo]
+    HomePageUrl: https://github.com/awslabs/aws-serverless-codepipeline-serverlessrepo-publish
+    # Update the semantic version and run sam publish to publish a new version of your app
+    SemanticVersion: 0.0.1
+    # best practice is to use git tags for each release and link to the version tag as your source code URL
+    SourceCodeUrl: https://github.com/awslabs/aws-serverless-codepipeline-serverlessrepo-publish
+
+Parameters:
+  LogLevel:
+    Type: String
+    Description: Log level for Lambda function logging, e.g., ERROR, INFO, DEBUG, etc
+    Default: INFO
+  ArtifactStoreBucket:
+    Type: String
+    Description: The S3 bucket name that CodePipeline uses to store artifacts
+
 Resources:
   ServerlessRepoPublish:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: app/
-      Handler: handlers.publish
-      Runtime: python3.6
+      CodeUri: src/
+      Handler: handler.publish
+      Runtime: python3.7
       Tracing: Active
       MemorySize: 512
       Timeout: 300
+      Environment:
+        Variables:
+          LOG_LEVEL: !Ref LogLevel
       Policies:
-        - ServerlessRepoReadWriteAccessPolicy: {}
+        - S3ReadPolicy:
+            BucketName: !Ref ArtifactStoreBucket
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: 'Allow'
+              Action:
+                - codepipeline:PutJobSuccessResult
+                - codepipeline:PutJobFailureResult
+              Resource: '*'
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: 'Allow'
+              Action:
+                - serverlessrepo:CreateApplication
+                - serverlessrepo:CreateApplicationVersion
+                - serverlessrepo:UpdateApplication
+              Resource:
+                !Sub 'arn:${AWS::Partition}:serverlessrepo:${AWS::Region}:${AWS::AccountId}:applications/*'

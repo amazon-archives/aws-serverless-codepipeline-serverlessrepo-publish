@@ -4,14 +4,21 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-"boto3" = "*"
+boto3 = "*"
+aws-xray-sdk = "*"
+serverlessrepo = "*"
 
 [dev-packages]
-pytest = "*"
-"flake8" = "*"
+flake8 = "*"
+autopep8 = "*"
 pydocstyle = "*"
-pytest-cov = "*"
+cfn-lint = "*"
 aws-sam-cli = "*"
+awscli = "*"
+pytest = "*"
+pytest-mock = "*"
+pytest-cov = "*"
+mock = "*"
 
 [requires]
-python_version = "3.6"
+python_version = "3.7"

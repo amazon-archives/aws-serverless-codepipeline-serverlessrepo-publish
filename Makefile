@@ -1,9 +1,10 @@
 SHELL := /bin/sh
-PY_VERSION := 3.6
+PY_VERSION := 3.7
 
 export PYTHONUNBUFFERED := 1
 
-BUILD_DIR := dist
+SRC_DIR := src
+SAM_DIR := .aws-sam
 TEMPLATE_DIR := sam
 
 # Required environment variables (user must override)
@@ -12,6 +13,11 @@ TEMPLATE_DIR := sam
 PACKAGE_BUCKET ?= <bucket>
 
 # user can optionally override the following by setting environment variables with the same names before running make
+
+# Path to system pip
+PIP ?= pip
+# Default AWS CLI region
+AWS_DEFAULT_REGION ?= us-east-1
 
 # Stack name used when deploying the app for manual testing
 APP_STACK_NAME ?= aws-serverless-codepipeline-serverlessrepo-publish
@@ -28,8 +34,10 @@ PYTHON := $(shell /usr/bin/which python$(PY_VERSION))
 .DEFAULT_GOAL := build
 
 clean:
-	rm -rf $(BUILD_DIR)
+	rm -f $(SRC_DIR)/requirements.txt
+	rm -rf $(SAM_DIR)
 
+# used by CI build to install dependencies
 init:
 	$(PYTHON) -m pip install pipenv --user
 	pipenv sync --dev
@@ -37,23 +45,22 @@ init:
 init-cicd:
 	pipenv run sam deploy --template-file $(TEMPLATE_DIR)/cicd.yml --stack-name $(CICD_STACK_NAME) --parameter-overrides GitHubOwner="$(GITHUB_OWNER)" GitHubRepo="$(GITHUB_REPO)" --capabilities CAPABILITY_IAM
 
-compile-app:
-	mkdir -p $(BUILD_DIR)
-	pipenv run flake8 app
-	pipenv run pydocstyle app
+compile:
+	pipenv run flake8 $(SRC_DIR)
+	pipenv run pydocstyle $(SRC_DIR)
+	pipenv run cfn-lint $(TEMPLATE_DIR)/app.yml
+	pipenv run py.test --cov=$(SRC_DIR) --cov-fail-under=85 -vv test/unit
+	pipenv lock --requirements > $(SRC_DIR)/requirements.txt
+	pipenv run sam build -t $(TEMPLATE_DIR)/app.yml -m $(SRC_DIR)/requirements.txt --debug
 
-test: compile-app
-	pipenv run py.test --cov=app -vv test/unit
+build: compile
 
-build: package test
+package: compile
+	pipenv run sam package --template-file $(TEMPLATE_DIR)/app.yml --s3-bucket $(PACKAGE_BUCKET) --output-template-file $(SAM_DIR)/packaged-app.yml
 
-package: compile-app
-	cp -r $(TEMPLATE_DIR)/app.yml app $(BUILD_DIR)
-
-	# package dependencies in lib dir
-	pipenv lock --requirements > $(BUILD_DIR)/requirements.txt
-	pipenv run pip install -t $(BUILD_DIR)/app/lib -r $(BUILD_DIR)/requirements.txt
+publish: package
+	pipenv run sam publish --template $(SAM_DIR)/packaged-app.yml
 
 deploy: package
-	pipenv run sam package --template-file $(BUILD_DIR)/app.yml --s3-bucket $(PACKAGE_BUCKET) --output-template-file $(BUILD_DIR)/packaged-app.yml
-	pipenv run sam deploy --template-file $(BUILD_DIR)/packaged-app.yml --stack-name $(APP_STACK_NAME) --capabilities CAPABILITY_IAM
+	pipenv run sam package --template-file $(SAM_DIR)/app.yml --s3-bucket $(PACKAGE_BUCKET) --output-template-file $(SAM_DIR)/packaged-app.yml
+	pipenv run sam deploy --template-file $(SAM_DIR)/packaged-app.yml --stack-name $(APP_STACK_NAME) --capabilities CAPABILITY_IAM

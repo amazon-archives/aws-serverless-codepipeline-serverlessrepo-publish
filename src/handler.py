@@ -9,8 +9,9 @@ import serverlessrepo
 
 LOG = lambdalogging.getLogger(__name__)
 
-S3 = boto3.client('s3')
 CODEPIPELINE = boto3.client('codepipeline')
+
+HIDDEN_VALUE = '__HIDDEN__'
 
 
 def publish(event, context):
@@ -24,19 +25,39 @@ def publish(event, context):
 
     Arguments:
         event {dict} -- The JSON event sent to AWS Lambda by AWS CodePipeline
+        (https://docs.aws.amazon.com/codepipeline/latest/userguide/actions-invoke-lambda-function.html#actions-invoke-lambda-function-json-event-example)
         context {LambdaContext} -- The context passed by AWS Lambda
     """
-    LOG.info('CodePipeline publish to SAR request={}', event)
-
     job_id = event['CodePipeline.job']['id']
-    packaged_template_str = _get_input_artifact(event)
+
+    redacted_event = _remove_sensitive_items_from_event(event)
+    LOG.info('CodePipeline publish to SAR request={}', redacted_event)
 
     try:
+        packaged_template_str = _get_input_artifact(event)
         LOG.info('Making API calls to AWS Serverless Application Repository...')
         sar_response = serverlessrepo.publish_application(packaged_template_str)
         _put_job_success(job_id, sar_response)
     except Exception as e:
         _put_job_failure(job_id, e)
+
+
+def _remove_sensitive_items_from_event(event):
+    """Remove sensitive items from the CodePipeline event.
+
+    Arguments:
+        event {dict} -- The JSON event sent to AWS Lambda by AWS CodePipeline
+
+    Returns:
+        dict -- The redacted CodePipeline event
+
+    """
+    artifact_credentials = event['CodePipeline.job']['data']['artifactCredentials']
+    artifact_credentials['accessKeyId'] = HIDDEN_VALUE
+    artifact_credentials['secretAccessKey'] = HIDDEN_VALUE
+    artifact_credentials['sessionToken'] = HIDDEN_VALUE
+
+    return event
 
 
 def _get_input_artifact(event):
@@ -49,13 +70,45 @@ def _get_input_artifact(event):
         str -- The content in the packaged SAM template as string
 
     """
-    input_artifact_s3_location = event['CodePipeline.job']['data']['inputArtifacts'][0]['location']['s3Location']
-    bucket = input_artifact_s3_location['bucketName']
-    key = input_artifact_s3_location['objectKey']
+    artifact_credentials = event['CodePipeline.job']['data']['artifactCredentials']
+    S3 = boto3.client(
+        's3',
+        aws_access_key_id=artifact_credentials['accessKeyId'],
+        aws_secret_access_key=artifact_credentials['secretAccessKey'],
+        aws_session_token=artifact_credentials['sessionToken']
+    )
+
+    input_artifacts = event['CodePipeline.job']['data']['inputArtifacts']
+    artifact_to_fetch = _find_artifact_in_list(input_artifacts)
+
+    artifact_s3_location = artifact_to_fetch['location']['s3Location']
+    bucket = artifact_s3_location['bucketName']
+    key = artifact_s3_location['objectKey']
 
     response = S3.get_object(Bucket=bucket, Key=key)
-    # LOG.info('{}/{} fetched. {} bytes.', bucket, key, response['ContentLength'])
+    LOG.info('{}/{} fetched. {} bytes.', bucket, key, response['ContentLength'])
     return response.get('Body').read().decode(response['ContentLength'])
+
+
+def _find_artifact_in_list(input_artifacts):
+    """Find the artifact named 'PackagedTemplate' in the list of artifacts.
+
+    Arguments:
+        input_artifacts {dict list} -- list of input artifacts
+        https://docs.aws.amazon.com/codepipeline/latest/APIReference/API_Artifact.html
+
+    Raises:
+        RuntimeError -- Raise error if not able to find the artifact
+
+    Returns:
+        [dict] -- artifact to fetch from S3
+
+    """
+    for artifact in input_artifacts:
+        if artifact['name'] == 'PackagedTemplate':
+            return artifact
+
+    raise RuntimeError('Unable to find the artifact \'PackagedTemplate\'')
 
 
 def _put_job_success(job_id, sar_response):

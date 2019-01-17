@@ -1,22 +1,23 @@
+"""Unit test for handler.py."""
 import pytest
-from mock import MagicMock
 
 from botocore.exceptions import ClientError
 from serverlessrepo.exceptions import S3PermissionsRequired
 
 import handler
+from s3helper import PACKAGED_TEMPLATE
 
 
 @pytest.fixture
-def mock_boto3(mocker):
-    mocker.patch.object(handler, 'boto3')
-    return handler.boto3
+def mock_s3helper(mocker):
+    mocker.patch.object(handler, 's3helper')
+    return handler.s3helper
 
 
 @pytest.fixture
-def mock_codepipeline(mocker):
-    mocker.patch.object(handler, 'CODEPIPELINE')
-    return handler.CODEPIPELINE
+def mock_codepipelinehelper(mocker):
+    mocker.patch.object(handler, 'codepipelinehelper')
+    return handler.codepipelinehelper
 
 
 @pytest.fixture
@@ -25,48 +26,37 @@ def mock_serverlessrepo(mocker):
     return handler.serverlessrepo
 
 
-def test_publish(mock_boto3, mock_codepipeline, mock_serverlessrepo):
-    mock_s3 = MagicMock()
-    mock_boto3.client.return_value = mock_s3
-    mock_s3.get_object.return_value.get.return_value.read.return_value.decode.return_value = 'packaged_template_content'
+def test_publish(mock_s3helper, mock_codepipelinehelper, mock_serverlessrepo):
+    mock_s3helper.get_input_artifact.return_value = 'packaged_template_content'
     mock_serverlessrepo.publish_application.return_value = _mock_publish_application_response()
-    mock_codepipeline.put_job_success_result.return_value = None
+    mock_codepipelinehelper.put_job_success.return_value = None
 
     handler.publish(_mock_codepipeline_event(), None)
 
-    mock_s3.get_object.assert_called_once_with(
-        Bucket='sample-pipeline-artifact-store-bucket',
-        Key='sample-artifact-key'
-    )
+    mock_s3helper.get_input_artifact.assert_called_once_with(_mock_codepipeline_event())
     mock_serverlessrepo.publish_application.assert_called_once_with('packaged_template_content')
-    mock_codepipeline.put_job_success_result.assert_called_once_with(
-        jobId='sample-codepipeline-job-id',
-        executionDetails={
-            'summary': str(_mock_publish_application_response()),
-            'percentComplete': 100
-        }
+    mock_codepipelinehelper.put_job_success.assert_called_once_with(
+        'sample-codepipeline-job-id',
+        _mock_publish_application_response()
     )
 
 
-def test_publish_unable_to_find_artifact(mock_boto3, mock_codepipeline, mock_serverlessrepo):
-    mock_s3 = MagicMock()
-    mock_boto3.client.return_value = mock_s3
+def test_publish_unable_to_find_artifact(mock_s3helper, mock_codepipelinehelper, mock_serverlessrepo):
+    exception_thrown = RuntimeError('Unable to find the artifact with name ' + PACKAGED_TEMPLATE)
+    mock_s3helper.get_input_artifact.side_effect = exception_thrown
 
     handler.publish(_mock_codepipeline_event_no_artifact_found(), None)
 
-    mock_s3.get_object.assert_not_called()
+    mock_s3helper.get_input_artifact.assert_called_once_with(_mock_codepipeline_event_no_artifact_found())
     mock_serverlessrepo.assert_not_called()
-    mock_codepipeline.put_job_failure_result.assert_called_once_with(
-        jobId='sample-codepipeline-job-id',
-        failureDetails={
-            'type': 'JobFailed',
-            'message': 'Unable to find the artifact \'PackagedTemplate\''
-        }
+    mock_codepipelinehelper.put_job_failure.assert_called_once_with(
+        'sample-codepipeline-job-id',
+        exception_thrown
     )
-    mock_codepipeline.put_job_success_result.assert_not_called()
+    mock_codepipelinehelper.put_job_success.assert_not_called()
 
 
-def test_publish_unable_to_get_input_artifact(mock_boto3, mock_codepipeline, mock_serverlessrepo):
+def test_publish_unable_to_get_input_artifact(mock_s3helper, mock_codepipelinehelper, mock_serverlessrepo):
     exception_thrown = ClientError(
         {
             "Error": {
@@ -76,52 +66,37 @@ def test_publish_unable_to_get_input_artifact(mock_boto3, mock_codepipeline, moc
         },
         "GetObject"
     )
-    mock_s3 = MagicMock()
-    mock_boto3.client.return_value = mock_s3
-    mock_s3.get_object.side_effect = exception_thrown
+    mock_s3helper.get_input_artifact.side_effect = exception_thrown
 
     handler.publish(_mock_codepipeline_event(), None)
 
-    mock_s3.get_object.assert_called_once_with(
-        Bucket='sample-pipeline-artifact-store-bucket',
-        Key='sample-artifact-key'
-    )
+    mock_s3helper.get_input_artifact.assert_called_once_with(_mock_codepipeline_event())
     mock_serverlessrepo.assert_not_called()
-    mock_codepipeline.put_job_failure_result.assert_called_once_with(
-        jobId='sample-codepipeline-job-id',
-        failureDetails={
-            'type': 'JobFailed',
-            'message': str(exception_thrown)
-        }
+    mock_codepipelinehelper.put_job_failure.assert_called_once_with(
+        'sample-codepipeline-job-id',
+        exception_thrown
     )
-    mock_codepipeline.put_job_success_result.assert_not_called()
+    mock_codepipelinehelper.put_job_success_result.assert_not_called()
 
 
-def test_publish_unsuccessful(mock_boto3, mock_codepipeline, mock_serverlessrepo):
-    mock_s3 = MagicMock()
-    mock_boto3.client.return_value = mock_s3
-    mock_s3.get_object.return_value.get.return_value.read.return_value.decode.return_value = 'packaged_template_content'
-    mock_serverlessrepo.publish_application.side_effect = S3PermissionsRequired(
+def test_publish_unsuccessful(mock_s3helper, mock_codepipelinehelper, mock_serverlessrepo):
+    exception_thrown = S3PermissionsRequired(
         bucket='some-s3-bucket',
         key='some-s3-key'
     )
-    mock_codepipeline.put_job_failure_result.return_value = None
+    mock_s3helper.get_input_artifact.return_value = 'packaged_template_content'
+    mock_serverlessrepo.publish_application.side_effect = exception_thrown
+    mock_codepipelinehelper.put_job_failure.return_value = None
 
     handler.publish(_mock_codepipeline_event(), None)
 
-    mock_s3.get_object.assert_called_once_with(
-        Bucket='sample-pipeline-artifact-store-bucket',
-        Key='sample-artifact-key'
-    )
+    mock_s3helper.get_input_artifact.assert_called_once_with(_mock_codepipeline_event())
     mock_serverlessrepo.publish_application.assert_called_once_with('packaged_template_content')
-    mock_codepipeline.put_job_failure_result.assert_called_once_with(
-        jobId='sample-codepipeline-job-id',
-        failureDetails={
-            'type': 'JobFailed',
-            'message': str(S3PermissionsRequired(bucket='some-s3-bucket', key='some-s3-key'))
-        }
+    mock_codepipelinehelper.put_job_failure.assert_called_once_with(
+        'sample-codepipeline-job-id',
+        exception_thrown
     )
-    mock_codepipeline.put_job_success_result.assert_not_called()
+    mock_codepipelinehelper.put_job_success.assert_not_called()
 
 
 def _mock_codepipeline_event():

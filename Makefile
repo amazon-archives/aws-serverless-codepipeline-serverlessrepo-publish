@@ -4,6 +4,7 @@ PY_VERSION := 3.7
 export PYTHONUNBUFFERED := 1
 
 SRC_DIR := src
+TEST_DIR := test
 SAM_DIR := .aws-sam
 TEMPLATE_DIR := sam
 
@@ -46,12 +47,15 @@ init-cicd:
 	pipenv run sam deploy --template-file $(TEMPLATE_DIR)/cicd.yml --stack-name $(CICD_STACK_NAME) --parameter-overrides GitHubOwner="$(GITHUB_OWNER)" GitHubRepo="$(GITHUB_REPO)" --capabilities CAPABILITY_IAM
 
 compile:
-	pipenv run flake8 $(SRC_DIR)
+	pipenv run flake8 $(SRC_DIR) $(TEST_DIR)
 	pipenv run pydocstyle $(SRC_DIR)
 	pipenv run cfn-lint $(TEMPLATE_DIR)/app.yml
 	pipenv run py.test --cov=$(SRC_DIR) --cov-fail-under=85 -vv test/unit
 	pipenv lock --requirements > $(SRC_DIR)/requirements.txt
-	pipenv run sam build -t $(TEMPLATE_DIR)/app.yml -m $(SRC_DIR)/requirements.txt --debug -u
+	pipenv run sam build -t $(TEMPLATE_DIR)/app.yml -m $(SRC_DIR)/requirements.txt --debug
+
+integ-test:
+	pipenv run py.test --cov=$(SRC_DIR) --cov-fail-under=85 -vv test/integration
 
 build: compile
 

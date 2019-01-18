@@ -50,7 +50,7 @@ def _find_artifact_in_list(input_artifacts):
         RuntimeError -- Raise error if not able to find the artifact
 
     Returns:
-        [dict] -- artifact to fetch from S3
+        dict -- artifact to fetch from S3
 
     """
     for artifact in input_artifacts:

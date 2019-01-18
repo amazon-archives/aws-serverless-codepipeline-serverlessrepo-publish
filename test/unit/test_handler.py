@@ -5,6 +5,7 @@ from botocore.exceptions import ClientError
 from serverlessrepo.exceptions import S3PermissionsRequired
 
 import handler
+from test_constants import mock_codepipeline_event, mock_codepipeline_event_no_artifact_found
 from s3helper import PACKAGED_TEMPLATE
 
 
@@ -31,9 +32,9 @@ def test_publish(mock_s3helper, mock_codepipelinehelper, mock_serverlessrepo):
     mock_serverlessrepo.publish_application.return_value = _mock_publish_application_response()
     mock_codepipelinehelper.put_job_success.return_value = None
 
-    handler.publish(_mock_codepipeline_event(), None)
+    handler.publish(mock_codepipeline_event, None)
 
-    mock_s3helper.get_input_artifact.assert_called_once_with(_mock_codepipeline_event())
+    mock_s3helper.get_input_artifact.assert_called_once_with(mock_codepipeline_event)
     mock_serverlessrepo.publish_application.assert_called_once_with('packaged_template_content')
     mock_codepipelinehelper.put_job_success.assert_called_once_with(
         'sample-codepipeline-job-id',
@@ -45,9 +46,9 @@ def test_publish_unable_to_find_artifact(mock_s3helper, mock_codepipelinehelper,
     exception_thrown = RuntimeError('Unable to find the artifact with name ' + PACKAGED_TEMPLATE)
     mock_s3helper.get_input_artifact.side_effect = exception_thrown
 
-    handler.publish(_mock_codepipeline_event_no_artifact_found(), None)
+    handler.publish(mock_codepipeline_event_no_artifact_found, None)
 
-    mock_s3helper.get_input_artifact.assert_called_once_with(_mock_codepipeline_event_no_artifact_found())
+    mock_s3helper.get_input_artifact.assert_called_once_with(mock_codepipeline_event_no_artifact_found)
     mock_serverlessrepo.assert_not_called()
     mock_codepipelinehelper.put_job_failure.assert_called_once_with(
         'sample-codepipeline-job-id',
@@ -68,9 +69,9 @@ def test_publish_unable_to_get_input_artifact(mock_s3helper, mock_codepipelinehe
     )
     mock_s3helper.get_input_artifact.side_effect = exception_thrown
 
-    handler.publish(_mock_codepipeline_event(), None)
+    handler.publish(mock_codepipeline_event, None)
 
-    mock_s3helper.get_input_artifact.assert_called_once_with(_mock_codepipeline_event())
+    mock_s3helper.get_input_artifact.assert_called_once_with(mock_codepipeline_event)
     mock_serverlessrepo.assert_not_called()
     mock_codepipelinehelper.put_job_failure.assert_called_once_with(
         'sample-codepipeline-job-id',
@@ -88,100 +89,15 @@ def test_publish_unsuccessful(mock_s3helper, mock_codepipelinehelper, mock_serve
     mock_serverlessrepo.publish_application.side_effect = exception_thrown
     mock_codepipelinehelper.put_job_failure.return_value = None
 
-    handler.publish(_mock_codepipeline_event(), None)
+    handler.publish(mock_codepipeline_event, None)
 
-    mock_s3helper.get_input_artifact.assert_called_once_with(_mock_codepipeline_event())
+    mock_s3helper.get_input_artifact.assert_called_once_with(mock_codepipeline_event)
     mock_serverlessrepo.publish_application.assert_called_once_with('packaged_template_content')
     mock_codepipelinehelper.put_job_failure.assert_called_once_with(
         'sample-codepipeline-job-id',
         exception_thrown
     )
     mock_codepipelinehelper.put_job_success.assert_not_called()
-
-
-def _mock_codepipeline_event():
-    return {
-        'CodePipeline.job': {
-            'id': 'sample-codepipeline-job-id',
-            'accountId': 'sample-account-id',
-            'data': {
-                'actionConfiguration': {
-                    'configuration': {
-                        'FunctionName': 'sample-lambda-function-name',
-                        'UserParameters': 'sample-user-parameter'
-                    }
-                },
-                'inputArtifacts': [
-                    {
-                        'location': {
-                            's3Location': {
-                                'bucketName': 'sample-pipeline-artifact-store-bucket',
-                                'objectKey': 'sample-artifact-key1'
-                            },
-                            'type': 'S3'
-                        },
-                        'revision': None,
-                        'name': 'NotPackagedTemplate'
-                    },
-                    {
-                        'location': {
-                            's3Location': {
-                                'bucketName': 'sample-pipeline-artifact-store-bucket',
-                                'objectKey': 'sample-artifact-key'
-                            },
-                            'type': 'S3'
-                        },
-                        'revision': None,
-                        'name': 'PackagedTemplate'
-                    }
-                ],
-                'outputArtifacts': [],
-                'artifactCredentials': {
-                    'secretAccessKey': 'sample-secret-access-key',
-                    'sessionToken': 'sample-session-token',
-                    'accessKeyId': 'sample-access-key-id'
-                },
-                'continuationToken': 'sample-continuation-token'
-            }
-        }
-    }
-
-
-def _mock_codepipeline_event_no_artifact_found():
-    return {
-        'CodePipeline.job': {
-            'id': 'sample-codepipeline-job-id',
-            'accountId': 'sample-account-id',
-            'data': {
-                'actionConfiguration': {
-                    'configuration': {
-                        'FunctionName': 'sample-lambda-function-name',
-                        'UserParameters': 'sample-user-parameter'
-                    }
-                },
-                'inputArtifacts': [
-                    {
-                        'location': {
-                            's3Location': {
-                                'bucketName': 'sample-pipeline-artifact-store-bucket',
-                                'objectKey': 'sample-artifact-key1'
-                            },
-                            'type': 'S3'
-                        },
-                        'revision': None,
-                        'name': 'NotPackagedTemplate'
-                    }
-                ],
-                'outputArtifacts': [],
-                'artifactCredentials': {
-                    'secretAccessKey': 'sample-secret-access-key',
-                    'sessionToken': 'sample-session-token',
-                    'accessKeyId': 'sample-access-key-id'
-                },
-                'continuationToken': 'sample-continuation-token'
-            }
-        }
-    }
 
 
 def _mock_publish_application_response():
@@ -193,5 +109,6 @@ def _mock_publish_application_response():
             'Description': 'sample-description',
             'Name': 'sample-app-name',
             'SemanticVersion': '1.0.0',
-            'SourceCodeUrl': 'https://github.com/'}
+            'SourceCodeUrl': 'https://github.com/'
+        }
     }

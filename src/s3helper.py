@@ -6,7 +6,7 @@ import boto3
 
 LOG = lambdalogging.getLogger(__name__)
 
-PACKAGED_TEMPLATE = 'PackagedTemplate'
+PACKAGED_TEMPLATE = 'BuildArtifact'
 
 
 def get_input_artifact(event):

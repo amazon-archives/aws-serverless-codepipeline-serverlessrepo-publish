@@ -1,0 +1,22 @@
+{
+    "CodePipeline.job": {
+        "id": "sample-codepipeline-job-id",
+        "accountId": "sample-account-id",
+        "data": {
+            "actionConfiguration": {
+                "configuration": {
+                    "FunctionName": "sample-lambda-function-name",
+                    "UserParameters": "sample-user-parameter"
+                }
+            },
+            "inputArtifacts": [],
+            "outputArtifacts": [],
+            "artifactCredentials": {
+                "secretAccessKey": "sample-secret-access-key",
+                "sessionToken": "sample-session-token",
+                "accessKeyId": "sample-access-key-id"
+            },
+            "continuationToken": "sample-continuation-token"
+        }
+    }
+}

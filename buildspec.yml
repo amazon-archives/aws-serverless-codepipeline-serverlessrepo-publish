@@ -6,7 +6,8 @@ phases:
   build:
     commands:
     - make
+    - make package
 artifacts:
   files:
-    - dist/packaged-app.yml
+    - .aws-sam/packaged-app.yml
   discard-paths: yes

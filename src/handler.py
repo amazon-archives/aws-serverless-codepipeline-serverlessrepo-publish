@@ -31,7 +31,7 @@ def publish(event, context):
     job_id = event['CodePipeline.job']['id']
 
     redacted_event = _remove_sensitive_items_from_event(event)
-    LOG.info('CodePipeline publish to SAR request={}', redacted_event)
+    LOG.info('CodePipeline publish to SAR request={}'.format(redacted_event))
 
     try:
         packaged_template_str = s3helper.get_input_artifact(event)
@@ -39,6 +39,7 @@ def publish(event, context):
         sar_response = serverlessrepo.publish_application(packaged_template_str)
         codepipelinehelper.put_job_success(job_id, sar_response)
     except Exception as e:
+        LOG.error(str(e))
         codepipelinehelper.put_job_failure(job_id, e)
 
 

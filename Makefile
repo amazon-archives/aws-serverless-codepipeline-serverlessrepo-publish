@@ -11,7 +11,7 @@ TEMPLATE_DIR := sam
 # Required environment variables (user must override)
 
 # S3 bucket used for packaging SAM templates
-PACKAGE_BUCKET ?= <bucket>
+PACKAGE_BUCKET ?= aws-sar-publishing
 
 # user can optionally override the following by setting environment variables with the same names before running make
 
@@ -60,7 +60,7 @@ integ-test:
 build: compile
 
 package: compile
-	pipenv run sam package --template-file $(TEMPLATE_DIR)/app.yml --s3-bucket $(PACKAGE_BUCKET) --output-template-file $(SAM_DIR)/packaged-app.yml
+	pipenv run sam package --template-file $(SAM_DIR)/build/template.yaml --s3-bucket $(PACKAGE_BUCKET) --output-template-file $(SAM_DIR)/packaged-app.yml
 
 publish: package
 	pipenv run sam publish --template $(SAM_DIR)/packaged-app.yml

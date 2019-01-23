@@ -44,7 +44,7 @@ mock_codepipeline_event = generate_pipeline_event(
                 "type": "S3"
             },
             "revision": None,
-            "name": "PackagedTemplate"
+            "name": "BuildArtifact"
         }
     ]
 )

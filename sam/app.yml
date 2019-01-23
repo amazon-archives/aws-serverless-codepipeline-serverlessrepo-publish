@@ -29,7 +29,7 @@ Resources:
   ServerlessRepoPublish:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: src/
+      CodeUri: ../src/
       Handler: handler.publish
       Runtime: python3.7
       Tracing: Active

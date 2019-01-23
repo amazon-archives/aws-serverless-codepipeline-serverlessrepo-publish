@@ -1,0 +1,90 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:
+  # todo: pass those values by Makefile
+  AppTemplateURL:
+    Type: String
+    Description: S3 URI of app template
+  AppLambdaCodeBucket:
+    Type: String
+    Description: S3 bucket of app code
+  AppLambdaCodeKey:
+    Type: String
+    Description: S3 key of app code
+  SourceS3Key:
+    Default: template.yml
+    Description: The file name of the source artifact
+    Type: String
+
+
+Resources:
+  Pipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      ArtifactStore:
+        Type: S3
+        Location: 
+          Ref: ArtifactStoreBucket
+      RoleArn: !GetAtt [PipelineRole, Arn]
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: TemplateSource
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Provider: S3
+                Version: '1'
+              Configuration:
+                S3Bucket: !Ref 'SourceBucket'
+                S3ObjectKey: !Ref 'SourceS3Key'
+              OutputArtifacts:
+                - Name: TemplateSource
+              RunOrder: '1'
+              # todo: add build and deploy stages here
+
+  ArtifactStoreBucket:
+    Type: AWS::S3::Bucket
+
+  SourceBucket:
+    Type: AWS::S3::Bucket
+
+  PipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Action: ['sts:AssumeRole']
+          Effect: Allow
+          Principal:
+            Service: [codepipeline.amazonaws.com]
+        Version: '2012-10-17'
+      Path: /
+      Policies:
+        - PolicyName: CodePipelineAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Action:
+                - 's3:*'
+                - 'cloudformation:CreateStack'
+                - 'cloudformation:DescribeStacks'
+                - 'cloudformation:DeleteStack'
+                - 'cloudformation:UpdateStack'
+                - 'cloudformation:CreateChangeSet'
+                - 'cloudformation:ExecuteChangeSet'
+                - 'cloudformation:DeleteChangeSet'
+                - 'cloudformation:DescribeChangeSet'
+                - 'cloudformation:SetStackPolicy'
+                - 'iam:PassRole'
+                - 'sns:Publish'
+                Effect: Allow
+                Resource: '*'
+
+  CodePipelineServerlessRepoPublishApp:
+    Type: 'AWS::CloudFormation::Stack'
+    Properties:
+      TemplateURL: !Ref AppTemplateURL
+      Parameters:
+        ArtifactStoreBucket: !Ref ArtifactStoreBucket
+        LambdaCodeBucket: !Ref AppLambdaCodeBucket 
+        LambdaCodeKey: !Ref AppLambdaCodeKey

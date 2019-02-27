@@ -1,10 +1,10 @@
 """Integration test for CodePipeline ServerlessRepo Publish app."""
 import pytest
 import uuid
-import time
+# import time
 
 import boto3
-import os
+# import os
 
 REGION = 'us-east-1'
 STACK_SUFFIX = str(uuid.uuid4())

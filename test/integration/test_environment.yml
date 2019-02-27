@@ -8,7 +8,6 @@ Parameters:
     Description: The file name of the source artifact
     Type: String
 
-
 Resources:
   CodePipelineServerlessRepoPublishApp:
     Type: 'AWS::CloudFormation::Stack'
@@ -161,4 +160,9 @@ Resources:
           - Effect: Allow
             Action:
             - "cloudformation:*"
-            Resource: '*'    
+            Resource: '*'
+
+Outputs:
+  SourceBucketName:
+    Description: Name of source s3 bucket for triggering integ test pipeline 
+    Value: !Ref SourceBucket

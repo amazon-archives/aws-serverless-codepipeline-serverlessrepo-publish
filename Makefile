@@ -61,16 +61,6 @@ integ-test: compile
 	aws s3api put-object --bucket $(INTEG_TEST_BUCKET) --key template.yml --body $(SAM_DIR)/packaged-app.yml
 	aws s3api put-object --bucket $(INTEG_TEST_BUCKET) --key test_environment.yml --body $(TEST_DIR)/integration/test_environment.yml
 	pipenv run py.test --cov=$(SRC_DIR) -s -vv test/integration
-	
-	# sam package --template-file $(SAM_DIR)/build/template.yaml --s3-bucket tmp-bucket-for-simon-test --output-template-file $(SAM_DIR)/packaged-app.yml
-	# aws s3api put-object --bucket tmp-bucket-for-simon-test --key template.yml --body $(SAM_DIR)/packaged-app.yml
-	# aws s3api put-object --bucket tmp-bucket-for-simon-test --key test_environment.yml --body $(TEST_DIR)/integration/test_environment.yml
-
-
-
-
-testtest:
-	pipenv run py.test --cov=$(SRC_DIR) -s -vv test/unit/test_handler.py
 
 build: compile
 

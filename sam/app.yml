@@ -57,6 +57,7 @@ Resources:
                 - serverlessrepo:UpdateApplication
               Resource:
                 !Sub 'arn:${AWS::Partition}:serverlessrepo:${AWS::Region}:${AWS::AccountId}:applications/*'
+
 Outputs:
   ServerlessRepoPublishLambdaFunctionName:
     Description: Name of ServerlessRepoPublish lambda function

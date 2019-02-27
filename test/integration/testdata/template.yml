@@ -1,0 +1,53 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: my-sam-app
+    Description: This serverless application is a new demo
+    Author: Simon Meng
+    SpdxLicenseId: MIT
+    # paths are relative to .aws-sam/build directory
+    LicenseUrl: ../../LICENSE
+    ReadmeUrl: ../../README.md
+    Labels: [serverless]
+    HomePageUrl: https://github.com/Simon2228/my-sam-app
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/Simon2228/my-sam-app
+
+Parameters:
+  LogLevel:
+    Type: String
+    Description: Log level for Lambda function logging, e.g., ERROR, INFO, DEBUG, etc
+    Default: INFO
+
+Resources:
+  MyFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: myfunction.handler
+      Runtime: python3.7
+      Tracing: Active
+      Timeout: 60
+      Environment:
+        Variables:
+          LOG_LEVEL: !Ref LogLevel
+          TABLE_NAME: !Ref MyTable
+
+  MyTable:
+    Type: AWS::Serverless::SimpleTable
+
+Outputs:
+  MyFunctionName:
+    Description: "Lambda Function Name"
+    Value: !Ref MyFunction
+  MyFunctionArn:
+    Description: "Lambda Function ARN"
+    Value: !GetAtt MyFunction.Arn
+  MyTableName:
+    Description: "Table Name"
+    Value: !Ref MyTable
+  MyTableArn:
+    Description: "Table ARN"
+    Value: !GetAtt MyTable.Arn

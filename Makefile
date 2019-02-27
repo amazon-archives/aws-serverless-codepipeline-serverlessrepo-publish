@@ -54,7 +54,7 @@ compile:
 	pipenv run cfn-lint $(TEMPLATE_DIR)/app.yml
 	pipenv run py.test --cov=$(SRC_DIR) --cov-fail-under=85 -vv test/unit
 	pipenv lock --requirements > $(SRC_DIR)/requirements.txt
-	pipenv run sam build -t $(TEMPLATE_DIR)/app.yml -m $(SRC_DIR)/requirements.txt -u --debug
+	pipenv run sam build -t $(TEMPLATE_DIR)/app.yml -m $(SRC_DIR)/requirements.txt --debug
 
 integ-test: compile
 	sam package --template-file $(SAM_DIR)/build/template.yaml --s3-bucket $(INTEG_TEST_BUCKET) --output-template-file $(SAM_DIR)/packaged-app.yml

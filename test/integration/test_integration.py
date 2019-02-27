@@ -34,6 +34,7 @@ def setup_and_teardown(request):
     # test_environment_stack_outputs = describe_stacks_result['Stacks'][0]['Outputs']
     # print(test_environment_stack_outputs)
 
+    print(create_stack_result)
     print('=========test finish===========')
 
 # def teardown():

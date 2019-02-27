@@ -12,6 +12,8 @@ TEMPLATE_DIR := sam
 
 # S3 bucket used for packaging SAM templates
 PACKAGE_BUCKET ?= aws-sar-publishing
+INTEG_TEST_BUCKET ?= codepipeline-sar-publish-integ-tests
+
 
 # user can optionally override the following by setting environment variables with the same names before running make
 
@@ -52,10 +54,23 @@ compile:
 	pipenv run cfn-lint $(TEMPLATE_DIR)/app.yml
 	pipenv run py.test --cov=$(SRC_DIR) --cov-fail-under=85 -vv test/unit
 	pipenv lock --requirements > $(SRC_DIR)/requirements.txt
-	pipenv run sam build -t $(TEMPLATE_DIR)/app.yml -m $(SRC_DIR)/requirements.txt --debug
+	pipenv run sam build -t $(TEMPLATE_DIR)/app.yml -m $(SRC_DIR)/requirements.txt -u --debug
 
-integ-test:
-	pipenv run py.test --cov=$(SRC_DIR) --cov-fail-under=85 -vv test/integration
+integ-test: compile
+	sam package --template-file $(SAM_DIR)/build/template.yaml --s3-bucket $(INTEG_TEST_BUCKET) --output-template-file $(SAM_DIR)/packaged-app.yml
+	aws s3api put-object --bucket $(INTEG_TEST_BUCKET) --key template.yml --body $(SAM_DIR)/packaged-app.yml
+	aws s3api put-object --bucket $(INTEG_TEST_BUCKET) --key test_environment.yml --body $(TEST_DIR)/integration/test_environment.yml
+	pipenv run py.test --cov=$(SRC_DIR) -s -vv test/integration
+	
+	# sam package --template-file $(SAM_DIR)/build/template.yaml --s3-bucket tmp-bucket-for-simon-test --output-template-file $(SAM_DIR)/packaged-app.yml
+	# aws s3api put-object --bucket tmp-bucket-for-simon-test --key template.yml --body $(SAM_DIR)/packaged-app.yml
+	# aws s3api put-object --bucket tmp-bucket-for-simon-test --key test_environment.yml --body $(TEST_DIR)/integration/test_environment.yml
+
+
+
+
+testtest:
+	pipenv run py.test --cov=$(SRC_DIR) -s -vv test/unit/test_handler.py
 
 build: compile
 

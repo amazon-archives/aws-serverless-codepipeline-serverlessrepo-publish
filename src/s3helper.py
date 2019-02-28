@@ -37,7 +37,7 @@ def get_input_artifact(event):
     key = artifact_s3_location['objectKey']
 
     response = S3.get_object(Bucket=bucket, Key=key)
-    LOG.info('{}/{} fetched. {} bytes.'.format(bucket, key, response['ContentLength']))
+    LOG.info('%s/%s fetched. %s bytes.', bucket, key, response['ContentLength'])
 
     zipped_content_as_bytes = response.get('Body').read()
     return _unzip_as_string(zipped_content_as_bytes)

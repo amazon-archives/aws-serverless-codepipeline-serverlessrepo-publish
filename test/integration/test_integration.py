@@ -8,7 +8,8 @@ import logging
 
 SOURCE_BUCKET = 'source_bucket'
 APPLICATION_ID = 'application_id'
-APPLICATION_NAME = 'my-sam-app'
+TEST_APPLICATION_NAME = 'my-sam-app'
+PUBLISH_APPLICATION_NAME = 'codepipeline-serverlessrepo-publish-app-integ-test-only'
 STACK_SUFFIX = str(uuid.uuid4())
 CLOUDFORMATION_CLIENT = boto3.client('cloudformation')
 SAR_CLIENT = boto3.client('serverlessrepo')
@@ -17,16 +18,28 @@ LOG = logging.getLogger(__name__)
 
 @pytest.fixture(scope='module', autouse=True)
 def setup_and_teardown(request):
+    try:
+        SAR_CLIENT.create_application(
+            Author='John Smith',
+            Description='This serverless application publishes applications to AWS Serverless Application Repository',
+            HomePageUrl='https://github.com',
+            Name=PUBLISH_APPLICATION_NAME,
+            SemanticVersion='0.0.1',
+            TemplateUrl='https://s3.amazonaws.com/codepipeline-sar-publish-integ-tests/template.yml'
+        )
+    except Exception:
+        LOG.info('Application codepipeline-serverlessrepo-publish-integ-test-only already exists, ready for integ test')
+
+    _wait_until(
+        SAR_CLIENT.get_application(
+            ApplicationId=_get_application_id(PUBLISH_APPLICATION_NAME)
+        ).get('Version') is not None
+    )
+
     test_env_stack_name = 'test-env-stack-' + STACK_SUFFIX
     create_stack_result = CLOUDFORMATION_CLIENT.create_stack(
         StackName=test_env_stack_name,
         TemplateURL='https://s3.amazonaws.com/codepipeline-sar-publish-integ-tests/test_environment.yml',
-        Parameters=[
-            {
-                'ParameterKey': 'AppTemplateURL',
-                'ParameterValue': 'https://s3.amazonaws.com/codepipeline-sar-publish-integ-tests/template.yml'
-            }
-        ],
         Capabilities=['CAPABILITY_IAM', 'CAPABILITY_AUTO_EXPAND']
     )
     test_environment_stack_id = create_stack_result['StackId']
@@ -41,13 +54,14 @@ def setup_and_teardown(request):
     ).get('OutputValue'))
 
     try:
-        SAR_CLIENT.delete_application(_get_application_id())
+        SAR_CLIENT.delete_application(_get_application_id(TEST_APPLICATION_NAME))
     except Exception:
-        LOG.info('Application has already been deleted, ready for integ test to start')
+        LOG.info('Application my-sam-app has already been deleted, ready for integ test to start')
 
     def teardown():
         CLOUDFORMATION_CLIENT.delete_stack(StackName=test_env_stack_name)
         SAR_CLIENT.delete_application(ApplicationId=request.config.cache.get(APPLICATION_ID))
+        SAR_CLIENT.delete_application(ApplicationId=_get_application_id(PUBLISH_APPLICATION_NAME))
     request.addfinalizer(teardown)
 
 
@@ -56,10 +70,9 @@ def test_end_to_end(request):
     test_source_files_path = os.path.join(integration_folder_path, 'testdata')
     _upload_source_files_to_s3(request.config.cache.get(SOURCE_BUCKET), test_source_files_path)
 
-    # give some time for the change to go through integ test pipeline and then publish to SAR
-    time.sleep(180)
+    _wait_until(SAR_CLIENT.list_applications().get('Applications') != [], timeout=180, period=10)
 
-    application_id = _get_application_id()
+    application_id = _get_application_id(TEST_APPLICATION_NAME)
     request.config.cache.set(APPLICATION_ID, application_id)
     get_application_result = SAR_CLIENT.get_application(ApplicationId=application_id)
     assert get_application_result['Author'] == 'John Smith'
@@ -88,8 +101,8 @@ def _upload_source_files_to_s3(bucket_name, path):
                 bucket.put_object(Key=full_path[len(path) + 1:], Body=data)
 
 
-def _get_application_id():
+def _get_application_id(application_name):
     list_applications_result = SAR_CLIENT.list_applications()
     return filter(
-        lambda a: a['Name'] == APPLICATION_NAME, list_applications_result['Applications']
+        lambda a: a['Name'] == application_name, list_applications_result['Applications']
     ).get('ApplicationId')

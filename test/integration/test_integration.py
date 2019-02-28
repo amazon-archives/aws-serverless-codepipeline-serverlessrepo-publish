@@ -6,8 +6,8 @@ import boto3
 import os
 import logging
 
-SOURCE_BUCKET = 'source_bucket'
-APPLICATION_ID = 'application_id'
+SOURCE_BUCKET_CACHE_KEY = 'source_bucket'
+APPLICATION_ID_CACHE_KEY = 'application_id'
 TEST_APPLICATION_NAME = 'my-sam-app'
 PUBLISH_APPLICATION_NAME = 'codepipeline-serverlessrepo-publish-app-integ-test-only'
 STACK_SUFFIX = str(uuid.uuid4())
@@ -49,7 +49,7 @@ def setup_and_teardown(request):
     )
     describe_stacks_result = CLOUDFORMATION_CLIENT.describe_stacks(StackName=test_environment_stack_id)
     test_environment_stack_outputs = describe_stacks_result['Stacks'][0]['Outputs']
-    request.config.cache.set(SOURCE_BUCKET, filter(
+    request.config.cache.set(SOURCE_BUCKET_CACHE_KEY, filter(
         lambda o: o['OutputKey'] == 'SourceBucketName', test_environment_stack_outputs
     ).get('OutputValue'))
 
@@ -60,7 +60,7 @@ def setup_and_teardown(request):
 
     def teardown():
         CLOUDFORMATION_CLIENT.delete_stack(StackName=test_env_stack_name)
-        SAR_CLIENT.delete_application(ApplicationId=request.config.cache.get(APPLICATION_ID))
+        SAR_CLIENT.delete_application(ApplicationId=request.config.cache.get(APPLICATION_ID_CACHE_KEY))
         SAR_CLIENT.delete_application(ApplicationId=_get_application_id(PUBLISH_APPLICATION_NAME))
     request.addfinalizer(teardown)
 
@@ -68,12 +68,12 @@ def setup_and_teardown(request):
 def test_end_to_end(request):
     integration_folder_path = os.path.dirname(os.path.abspath(__file__))
     test_source_files_path = os.path.join(integration_folder_path, 'testdata')
-    _upload_source_files_to_s3(request.config.cache.get(SOURCE_BUCKET), test_source_files_path)
+    _upload_source_files_to_s3(request.config.cache.get(SOURCE_BUCKET_CACHE_KEY), test_source_files_path)
 
     _wait_until(SAR_CLIENT.list_applications().get('Applications') != [], timeout=180, period=10)
 
     application_id = _get_application_id(TEST_APPLICATION_NAME)
-    request.config.cache.set(APPLICATION_ID, application_id)
+    request.config.cache.set(APPLICATION_ID_CACHE_KEY, application_id)
     get_application_result = SAR_CLIENT.get_application(ApplicationId=application_id)
     assert get_application_result['Author'] == 'John Smith'
     assert get_application_result['Description'] == 'This serverless application is a new demo'

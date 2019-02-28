@@ -5,15 +5,15 @@ Metadata:
   AWS::ServerlessRepo::Application:
     Name: my-sam-app
     Description: This serverless application is a new demo
-    Author: Simon Meng
+    Author: John Smith
     SpdxLicenseId: MIT
     # paths are relative to .aws-sam/build directory
     LicenseUrl: ../../LICENSE
     ReadmeUrl: ../../README.md
     Labels: [serverless]
-    HomePageUrl: https://github.com/Simon2228/my-sam-app
+    HomePageUrl: https://github.com/johnsmith/my-sam-app
     SemanticVersion: 0.0.1
-    SourceCodeUrl: https://github.com/Simon2228/my-sam-app
+    SourceCodeUrl: https://github.com/johnsmith/my-sam-app
 
 Parameters:
   LogLevel:

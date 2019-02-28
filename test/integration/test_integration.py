@@ -2,16 +2,17 @@
 import pytest
 import uuid
 import time
-
 import boto3
 import os
+import logging
 
-REGION = 'us-east-1'
 SOURCE_BUCKET = 'source_bucket'
-APPLICATION_ID = 'arn:aws:serverlessrepo:us-east-1:524508535562:applications/my-sam-app'
+APPLICATION_ID = 'application_id'
+APPLICATION_NAME = 'my-sam-app'
 STACK_SUFFIX = str(uuid.uuid4())
-CLOUDFORMATION_CLIENT = boto3.client('cloudformation', region_name=REGION)
-SAR_CLIENT = boto3. client('serverlessrepo', region_name=REGION)
+CLOUDFORMATION_CLIENT = boto3.client('cloudformation')
+SAR_CLIENT = boto3.client('serverlessrepo')
+LOG = logging.getLogger(__name__)
 
 
 @pytest.fixture(scope='module', autouse=True)
@@ -39,21 +40,32 @@ def setup_and_teardown(request):
         lambda o: o['OutputKey'] == 'SourceBucketName', test_environment_stack_outputs
     ).get('OutputValue'))
 
+    try:
+        SAR_CLIENT.delete_application(_get_application_id())
+    except Exception:
+        LOG.info('Application has already been deleted, ready for integ test to start')
+
     def teardown():
         CLOUDFORMATION_CLIENT.delete_stack(StackName=test_env_stack_name)
-        SAR_CLIENT.delete_application(ApplicationId=APPLICATION_ID)
+        SAR_CLIENT.delete_application(ApplicationId=request.config.cache.get(APPLICATION_ID))
     request.addfinalizer(teardown)
 
 
 def test_end_to_end(request):
     integration_folder_path = os.path.dirname(os.path.abspath(__file__))
     test_source_files_path = os.path.join(integration_folder_path, 'testdata')
-    upload_source_files_to_s3(request.config.cache.get(SOURCE_BUCKET), test_source_files_path)
+    _upload_source_files_to_s3(request.config.cache.get(SOURCE_BUCKET), test_source_files_path)
 
     # give some time for the change to go through integ test pipeline and then publish to SAR
     time.sleep(180)
 
-    SAR_CLIENT.get_application(ApplicationId=APPLICATION_ID)
+    application_id = _get_application_id()
+    request.config.cache.set(APPLICATION_ID, application_id)
+    get_application_result = SAR_CLIENT.get_application(ApplicationId=application_id)
+    assert get_application_result['Author'] == 'John Smith'
+    assert get_application_result['Description'] == 'This serverless application is a new demo'
+    assert get_application_result['SpdxLicenseId'] == 'MIT'
+    assert get_application_result['Version']['SemanticVersion'] == '0.0.1'
 
 
 def _wait_until(predicate, timeout=300, period=1):
@@ -65,7 +77,7 @@ def _wait_until(predicate, timeout=300, period=1):
     raise RuntimeError('Time out')
 
 
-def upload_source_files_to_s3(bucket_name, path):
+def _upload_source_files_to_s3(bucket_name, path):
     s3 = boto3.resource('s3')
     bucket = s3.Bucket(bucket_name)
 
@@ -74,3 +86,10 @@ def upload_source_files_to_s3(bucket_name, path):
             full_path = os.path.join(subdir, file)
             with open(full_path, 'rb') as data:
                 bucket.put_object(Key=full_path[len(path) + 1:], Body=data)
+
+
+def _get_application_id():
+    list_applications_result = SAR_CLIENT.list_applications()
+    return filter(
+        lambda a: a['Name'] == APPLICATION_NAME, list_applications_result['Applications']
+    ).get('ApplicationId')

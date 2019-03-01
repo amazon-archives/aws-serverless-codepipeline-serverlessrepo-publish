@@ -7,7 +7,8 @@ import os
 import logging
 
 SOURCE_BUCKET_CACHE_KEY = 'source_bucket'
-APPLICATION_ID_CACHE_KEY = 'application_id'
+TEST_APPLICATION_ID_CACHE_KEY = 'test_application_id'
+PUBLISH_APPLICATION_ID_CACHE_KEY = 'publish_application_id'
 TEST_APPLICATION_NAME = 'my-sam-app'
 PUBLISH_APPLICATION_NAME = 'codepipeline-serverlessrepo-publish-app-integ-test-only'
 STACK_SUFFIX = str(uuid.uuid4())
@@ -30,9 +31,10 @@ def setup_and_teardown(request):
     except Exception:
         LOG.info('Application codepipeline-serverlessrepo-publish-integ-test-only already exists, ready for integ test')
 
+    request.config.cache.set(PUBLISH_APPLICATION_ID_CACHE_KEY, _get_application_id(PUBLISH_APPLICATION_NAME))
     _wait_until(
         SAR_CLIENT.get_application(
-            ApplicationId=_get_application_id(PUBLISH_APPLICATION_NAME)
+            ApplicationId=request.config.cache.get(PUBLISH_APPLICATION_ID_CACHE_KEY)
         ).get('Version') is not None
     )
 
@@ -60,8 +62,8 @@ def setup_and_teardown(request):
 
     def teardown():
         CLOUDFORMATION_CLIENT.delete_stack(StackName=test_env_stack_name)
-        SAR_CLIENT.delete_application(ApplicationId=request.config.cache.get(APPLICATION_ID_CACHE_KEY))
-        SAR_CLIENT.delete_application(ApplicationId=_get_application_id(PUBLISH_APPLICATION_NAME))
+        SAR_CLIENT.delete_application(ApplicationId=request.config.cache.get(TEST_APPLICATION_ID_CACHE_KEY))
+        SAR_CLIENT.delete_application(ApplicationId=request.config.cache.get(PUBLISH_APPLICATION_ID_CACHE_KEY))
     request.addfinalizer(teardown)
 
 
@@ -73,7 +75,7 @@ def test_end_to_end(request):
     _wait_until(SAR_CLIENT.list_applications().get('Applications') != [], timeout=180, period=10)
 
     application_id = _get_application_id(TEST_APPLICATION_NAME)
-    request.config.cache.set(APPLICATION_ID_CACHE_KEY, application_id)
+    request.config.cache.set(TEST_APPLICATION_ID_CACHE_KEY, application_id)
     get_application_result = SAR_CLIENT.get_application(ApplicationId=application_id)
     assert get_application_result['Author'] == 'John Smith'
     assert get_application_result['Description'] == 'This serverless application is a new demo'

@@ -57,9 +57,9 @@ compile:
 	pipenv run sam build -t $(TEMPLATE_DIR)/app.yml -m $(SRC_DIR)/requirements.txt --debug
 
 integ-test: compile
-	sam package --template-file $(SAM_DIR)/build/template.yaml --s3-bucket $(INTEG_TEST_BUCKET) --output-template-file $(SAM_DIR)/packaged-app.yml
-	aws s3api put-object --bucket $(INTEG_TEST_BUCKET) --key template.yml --body $(SAM_DIR)/packaged-app.yml
-	aws s3api put-object --bucket $(INTEG_TEST_BUCKET) --key test_environment.yml --body $(TEST_DIR)/integration/test_environment.yml
+	pipenv run sam package --template-file $(SAM_DIR)/build/template.yaml --s3-bucket $(INTEG_TEST_BUCKET) --output-template-file $(SAM_DIR)/packaged-app.yml
+	pipenv run aws s3api put-object --bucket $(INTEG_TEST_BUCKET) --key template.yml --body $(SAM_DIR)/packaged-app.yml
+	pipenv run aws s3api put-object --bucket $(INTEG_TEST_BUCKET) --key test_environment.yml --body $(TEST_DIR)/integration/test_environment.yml
 	pipenv run py.test --cov=$(SRC_DIR) -s -vv test/integration
 
 build: compile

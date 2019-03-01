@@ -80,7 +80,13 @@ def test_end_to_end(request):
     assert get_application_result['Author'] == 'John Smith'
     assert get_application_result['Description'] == 'This serverless application is a new demo'
     assert get_application_result['SpdxLicenseId'] == 'MIT'
+    assert _are_lists_equal(get_application_result['Labels'], ['serverless']) is True
+    assert get_application_result['HomePageUrl'] == 'https://github.com/johnsmith/my-sam-app'
+    assert get_application_result['ReadmeUrl'] is not None
+    assert get_application_result['LicenseUrl'] is not None
     assert get_application_result['Version']['SemanticVersion'] == '0.0.1'
+    assert get_application_result['Version']['SourceCodeUrl'] == 'https://github.com/johnsmith/my-sam-app'
+    assert get_application_result['Version']['TemplateUrl'] is not None
 
 
 def _wait_until(predicate, timeout=300, period=1):
@@ -108,3 +114,7 @@ def _get_application_id(application_name):
     return filter(
         lambda a: a['Name'] == application_name, list_applications_result['Applications']
     ).get('ApplicationId')
+
+
+def _are_lists_equal(l1, l2):
+    return len(l1) == len(l2) and sorted(l1) == sorted(l2)

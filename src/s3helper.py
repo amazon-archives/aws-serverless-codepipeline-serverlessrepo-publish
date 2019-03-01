@@ -3,6 +3,8 @@
 import lambdalogging
 
 import boto3
+import zipfile
+import io
 
 LOG = lambdalogging.getLogger(__name__)
 
@@ -35,8 +37,10 @@ def get_input_artifact(event):
     key = artifact_s3_location['objectKey']
 
     response = S3.get_object(Bucket=bucket, Key=key)
-    LOG.info('{}/{} fetched. {} bytes.', bucket, key, response['ContentLength'])
-    return response.get('Body').read().decode(response['ContentLength'])
+    LOG.info('%s/%s fetched. %s bytes.', bucket, key, response['ContentLength'])
+
+    zipped_content_as_bytes = response.get('Body').read()
+    return _unzip_as_string(zipped_content_as_bytes)
 
 
 def _find_artifact_in_list(input_artifacts):
@@ -58,3 +62,18 @@ def _find_artifact_in_list(input_artifacts):
             return artifact
 
     raise RuntimeError('Unable to find the artifact with name ' + PACKAGED_TEMPLATE)
+
+
+def _unzip_as_string(data):
+    """Unzip stream of data in bytes as string.
+
+    Arguments:
+        data {bytes} -- Zipped data as bytes
+
+    Returns:
+        str -- Unzipped data as string
+
+    """
+    z = zipfile.ZipFile(io.BytesIO(data))
+    unzipped_data = z.read(z.infolist()[0])
+    return unzipped_data.decode()

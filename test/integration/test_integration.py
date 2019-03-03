@@ -33,7 +33,7 @@ def setup_and_teardown(request):
             TemplateUrl='https://s3.amazonaws.com/codepipeline-sar-publish-integ-tests/template.yml'
     )
     # except Exception:
-    #     LOG.info('Application codepipeline-serverlessrepo-publish-integ-test-only already exists, ready for integ test')
+    #  LOG.info('Application codepipeline-serverlessrepo-publish-integ-test-only already exists, ready for integ test')
 
     request.config.cache.set(PUBLISH_APPLICATION_ID_CACHE_KEY, _get_application_id(PUBLISH_APPLICATION_NAME))
     _wait_until(

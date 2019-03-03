@@ -6,6 +6,10 @@ import boto3
 import os
 import logging
 
+from aws_xray_sdk.core import patch_all
+
+patch_all()
+
 SOURCE_BUCKET_CACHE_KEY = 'source_bucket'
 TEST_APPLICATION_ID_CACHE_KEY = 'test_application_id'
 PUBLISH_APPLICATION_ID_CACHE_KEY = 'publish_application_id'
@@ -19,17 +23,17 @@ LOG = logging.getLogger(__name__)
 
 @pytest.fixture(scope='module', autouse=True)
 def setup_and_teardown(request):
-    try:
-        SAR_CLIENT.create_application(
+    # try:
+    SAR_CLIENT.create_application(
             Author='John Smith',
             Description='This serverless application publishes applications to AWS Serverless Application Repository',
             HomePageUrl='https://github.com',
             Name=PUBLISH_APPLICATION_NAME,
             SemanticVersion='0.0.1',
             TemplateUrl='https://s3.amazonaws.com/codepipeline-sar-publish-integ-tests/template.yml'
-        )
-    except Exception:
-        LOG.info('Application codepipeline-serverlessrepo-publish-integ-test-only already exists, ready for integ test')
+    )
+    # except Exception:
+    #     LOG.info('Application codepipeline-serverlessrepo-publish-integ-test-only already exists, ready for integ test')
 
     request.config.cache.set(PUBLISH_APPLICATION_ID_CACHE_KEY, _get_application_id(PUBLISH_APPLICATION_NAME))
     _wait_until(

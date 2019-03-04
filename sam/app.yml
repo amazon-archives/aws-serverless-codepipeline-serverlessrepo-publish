@@ -21,6 +21,12 @@ Parameters:
     Type: String
     Description: Log level for Lambda function logging, e.g., ERROR, INFO, DEBUG, etc
     Default: INFO
+  InputArtifactName:
+    Type: String
+    Description: >-
+      Input artifact for SAR auto publish lambda action. Usually it is the build stage output artifact
+      containing packaged template
+    Default: BuildArtifact
   ArtifactStoreBucket:
     Type: String
     Description: The S3 bucket name that CodePipeline uses to store artifacts
@@ -38,6 +44,7 @@ Resources:
       Environment:
         Variables:
           LOG_LEVEL: !Ref LogLevel
+          INPUT_ARTIFACT: !Ref InputArtifactName
       Policies:
         - S3ReadPolicy:
             BucketName: !Ref ArtifactStoreBucket

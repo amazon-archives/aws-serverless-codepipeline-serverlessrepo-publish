@@ -1,12 +1,12 @@
 """Unit test for handler.py."""
 import pytest
+import os
 
 from botocore.exceptions import ClientError
 from serverlessrepo.exceptions import S3PermissionsRequired
 
 import handler
 from test_constants import mock_codepipeline_event, mock_codepipeline_event_no_artifact_found
-from s3helper import PACKAGED_TEMPLATE
 
 
 @pytest.fixture
@@ -43,7 +43,7 @@ def test_publish(mock_s3helper, mock_codepipelinehelper, mock_serverlessrepo):
 
 
 def test_publish_unable_to_find_artifact(mock_s3helper, mock_codepipelinehelper, mock_serverlessrepo):
-    exception_thrown = RuntimeError('Unable to find the artifact with name ' + PACKAGED_TEMPLATE)
+    exception_thrown = RuntimeError('Unable to find the input artifact with name ' + os.environ['INPUT_ARTIFACT'])
     mock_s3helper.get_input_artifact.side_effect = exception_thrown
 
     handler.publish(mock_codepipeline_event_no_artifact_found, None)

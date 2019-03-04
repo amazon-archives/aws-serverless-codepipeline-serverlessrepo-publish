@@ -1,5 +1,6 @@
 """Unit test for handler.py."""
 import pytest
+import os
 from mock import MagicMock
 
 from botocore.exceptions import ClientError
@@ -43,7 +44,9 @@ def test_get_input_artifact_unable_to_find_artifact(mock_boto3, mock_zipfile):
     mock_s3 = MagicMock()
     mock_boto3.client.return_value = mock_s3
 
-    with pytest.raises(RuntimeError, match='Unable to find the artifact with name ' + s3helper.PACKAGED_TEMPLATE):
+    with pytest.raises(
+        RuntimeError, match='Unable to find the input artifact with name ' + os.environ['INPUT_ARTIFACT']
+    ):
         s3helper.get_input_artifact(mock_codepipeline_event_no_artifact_found)
 
     mock_s3.get_object.assert_not_called()

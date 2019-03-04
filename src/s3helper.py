@@ -5,10 +5,10 @@ import lambdalogging
 import boto3
 import zipfile
 import io
+import os
+
 
 LOG = lambdalogging.getLogger(__name__)
-
-PACKAGED_TEMPLATE = 'BuildArtifact'
 
 
 def get_input_artifact(event):
@@ -57,11 +57,12 @@ def _find_artifact_in_list(input_artifacts):
         dict -- artifact to fetch from S3
 
     """
+    input_artifact_to_use = os.environ['INPUT_ARTIFACT']
     for artifact in input_artifacts:
-        if artifact['name'] == PACKAGED_TEMPLATE:
+        if artifact['name'] == input_artifact_to_use:
             return artifact
 
-    raise RuntimeError('Unable to find the artifact with name ' + PACKAGED_TEMPLATE)
+    raise RuntimeError('Unable to find the input artifact with name ' + input_artifact_to_use)
 
 
 def _unzip_as_string(data):

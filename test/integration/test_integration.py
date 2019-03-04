@@ -6,9 +6,6 @@ import boto3
 import os
 import logging
 
-from aws_xray_sdk.core import patch_all
-
-patch_all()
 
 SOURCE_BUCKET_CACHE_KEY = 'source_bucket'
 TEST_APPLICATION_ID_CACHE_KEY = 'test_application_id'

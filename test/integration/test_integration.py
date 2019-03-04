@@ -8,116 +8,161 @@ import logging
 
 
 SOURCE_BUCKET_CACHE_KEY = 'source_bucket'
+ARTIFACT_STORE_BUCKET_CACHE_KEY = 'artifact_store_bucket'
 TEST_APPLICATION_ID_CACHE_KEY = 'test_application_id'
 PUBLISH_APPLICATION_ID_CACHE_KEY = 'publish_application_id'
+CODEPIPELINE_NAME_CACHE_KEY = 'codepipeline_name'
 TEST_APPLICATION_NAME = 'my-sam-app'
-PUBLISH_APPLICATION_NAME = 'codepipeline-serverlessrepo-publish-app-integ-test-only'
-STACK_SUFFIX = str(uuid.uuid4())
+PACKAGE_BUCKET = 'codepipeline-sar-publish-integ-tests'
+PUBLISH_APPLICATION_TEMPLATE_KEY = 'template.yml'
+PUBLISH_APPLICATION_ARN_REPLACE_STR = "${PUBLISH_APP_ARN}"
+APPLICATION_ID_FORMAT = 'arn:aws:serverlessrepo:{}:{}:applications/{}'
+PUBLISH_APPLICATION_NAME = 'codepipeline-serverlessrepo-publish-app-{}'.format(str(uuid.uuid4()))
+AWS_REGION = os.environ['AWS_REGION']
+AWS_ACCOUNT_ID = os.environ['AWS_ACCOUNT_ID']
+TEST_APPLICATION_ID = APPLICATION_ID_FORMAT.format(AWS_REGION, AWS_ACCOUNT_ID, TEST_APPLICATION_NAME)
+PUBLISH_APPLICATION_ID = APPLICATION_ID_FORMAT.format(AWS_REGION, AWS_ACCOUNT_ID, PUBLISH_APPLICATION_NAME)
+CURRENT_DIRECTORY = os.path.dirname(os.path.abspath(__file__))
+LOG = logging.getLogger(__name__)
+
 CLOUDFORMATION_CLIENT = boto3.client('cloudformation')
 SAR_CLIENT = boto3.client('serverlessrepo')
-LOG = logging.getLogger(__name__)
+S3_RESOURCE = boto3.resource('s3')
+CODEPIPELINE_CLIENT = boto3.client('codepipeline')
 
 
 @pytest.fixture(scope='module', autouse=True)
 def setup_and_teardown(request):
-    try:
-        SAR_CLIENT.create_application(
-                Author='John Smith',
-                Description='This serverless application publishes applications to AWS SAR',
-                HomePageUrl='https://github.com',
-                Name=PUBLISH_APPLICATION_NAME,
-                SemanticVersion='0.0.1',
-                TemplateUrl='https://s3.amazonaws.com/codepipeline-sar-publish-integ-tests/template.yml'
-        )
-    except Exception:
-        LOG.info('Application codepipeline-serverlessrepo-publish-integ-test-only already exists, ready for integ test')
+    def teardown():
+        _empty_bucket(request.config.cache.get(ARTIFACT_STORE_BUCKET_CACHE_KEY, ''))
+        _empty_bucket(request.config.cache.get(SOURCE_BUCKET_CACHE_KEY, ''))
 
-    request.config.cache.set(PUBLISH_APPLICATION_ID_CACHE_KEY, _get_application_id(PUBLISH_APPLICATION_NAME))
-    _wait_until(
-        SAR_CLIENT.get_application(
-            ApplicationId=request.config.cache.get(PUBLISH_APPLICATION_ID_CACHE_KEY)
-        ).get('Version') is not None
+        try:
+            CLOUDFORMATION_CLIENT.delete_stack(StackName=test_env_stack_name)
+        except Exception:
+            LOG.warning('Exception when deleting the test environment stack')
+
+        try:
+            SAR_CLIENT.delete_application(ApplicationId=TEST_APPLICATION_ID)
+        except Exception:
+            LOG.warning('Exception when deleting the test application in SAR')
+
+        try:
+            SAR_CLIENT.delete_application(ApplicationId=PUBLISH_APPLICATION_ID)
+        except Exception:
+            LOG.warning('Exception when deleting the SAR auto publish application in SAR')
+
+        LOG.info('Teardown complete')
+
+    request.addfinalizer(teardown)
+
+    try:
+        SAR_CLIENT.delete_application(ApplicationId=PUBLISH_APPLICATION_ID)
+    except SAR_CLIENT.exceptions.NotFoundException:
+        LOG.info('SAR Auto Publish app has already been deleted, ready for integ test to start')
+
+    SAR_CLIENT.create_application(
+            Author='John Smith',
+            Description='This serverless application publishes applications to AWS SAR',
+            HomePageUrl='https://github.com',
+            Name=PUBLISH_APPLICATION_NAME,
+            SemanticVersion='0.0.1',
+            TemplateUrl='https://s3.amazonaws.com/{}/{}'.format(PACKAGE_BUCKET, PUBLISH_APPLICATION_TEMPLATE_KEY)
     )
 
-    test_env_stack_name = 'test-env-stack-' + STACK_SUFFIX
+    test_env_stack_name = 'test-env-stack-' + str(uuid.uuid4())
+    with open(os.path.join(CURRENT_DIRECTORY, 'test_environment.yml')) as test_environment_template:
+        processed_test_environment_str = test_environment_template.read().replace(
+            PUBLISH_APPLICATION_ARN_REPLACE_STR, PUBLISH_APPLICATION_ID
+        )
     create_stack_result = CLOUDFORMATION_CLIENT.create_stack(
         StackName=test_env_stack_name,
-        TemplateURL='https://s3.amazonaws.com/codepipeline-sar-publish-integ-tests/test_environment.yml',
+        TemplateBody=processed_test_environment_str,
         Capabilities=['CAPABILITY_IAM', 'CAPABILITY_AUTO_EXPAND']
     )
     test_environment_stack_id = create_stack_result['StackId']
 
-    _wait_until((CLOUDFORMATION_CLIENT.describe_stacks(
-        StackName=test_environment_stack_id))['Stacks'][0]['StackStatus'] == 'CREATE_COMPLETE'
+    stack_create_complete_waiter = CLOUDFORMATION_CLIENT.get_waiter('stack_create_complete')
+    stack_create_complete_waiter.wait(
+        StackName=test_environment_stack_id,
+        WaiterConfig={
+            'Delay': 10,
+            'MaxAttempts': 30
+        }
     )
-    describe_stacks_result = CLOUDFORMATION_CLIENT.describe_stacks(StackName=test_environment_stack_id)
-    test_environment_stack_outputs = describe_stacks_result['Stacks'][0]['Outputs']
+
+    stack_resource_summaries = CLOUDFORMATION_CLIENT.list_stack_resources(
+        StackName=test_environment_stack_id
+    ).get('StackResourceSummaries')
+
     request.config.cache.set(SOURCE_BUCKET_CACHE_KEY, list(filter(
-        lambda o: o['OutputKey'] == 'SourceBucketName', test_environment_stack_outputs
-    ))[0].get('OutputValue'))
+        lambda s: s['LogicalResourceId'] == 'SourceBucket', stack_resource_summaries
+    ))[0].get('PhysicalResourceId'))
+    request.config.cache.set(ARTIFACT_STORE_BUCKET_CACHE_KEY, list(filter(
+        lambda s: s['LogicalResourceId'] == 'ArtifactStoreBucket', stack_resource_summaries
+    ))[0].get('PhysicalResourceId'))
+    request.config.cache.set(CODEPIPELINE_NAME_CACHE_KEY, list(filter(
+        lambda s: s['LogicalResourceId'] == 'Pipeline', stack_resource_summaries
+    ))[0].get('PhysicalResourceId'))
 
     try:
-        SAR_CLIENT.delete_application(_get_application_id(TEST_APPLICATION_NAME))
-    except Exception:
+        SAR_CLIENT.delete_application(ApplicationId=TEST_APPLICATION_ID)
+    except SAR_CLIENT.exceptions.NotFoundException:
         LOG.info('Application my-sam-app has already been deleted, ready for integ test to start')
-
-    def teardown():
-        CLOUDFORMATION_CLIENT.delete_stack(StackName=test_env_stack_name)
-        SAR_CLIENT.delete_application(ApplicationId=request.config.cache.get(TEST_APPLICATION_ID_CACHE_KEY))
-        SAR_CLIENT.delete_application(ApplicationId=request.config.cache.get(PUBLISH_APPLICATION_ID_CACHE_KEY))
-    request.addfinalizer(teardown)
+    LOG.info('Setup complete')
 
 
 def test_end_to_end(request):
-    integration_folder_path = os.path.dirname(os.path.abspath(__file__))
-    test_source_files_path = os.path.join(integration_folder_path, 'testdata')
-    _upload_source_files_to_s3(request.config.cache.get(SOURCE_BUCKET_CACHE_KEY), test_source_files_path)
+    test_source_zip_path = os.path.join(CURRENT_DIRECTORY, 'testdata', 'testapp.zip')
+    _upload_source_zip_to_s3(request.config.cache.get(SOURCE_BUCKET_CACHE_KEY, ''), test_source_zip_path)
 
-    _wait_until(SAR_CLIENT.list_applications().get('Applications') != [], timeout=180, period=10)
+    execution_id = CODEPIPELINE_CLIENT.start_pipeline_execution(
+        name=request.config.cache.get(CODEPIPELINE_NAME_CACHE_KEY, '')
+    ).get('pipelineExecutionId')
 
-    application_id = _get_application_id(TEST_APPLICATION_NAME)
-    request.config.cache.set(TEST_APPLICATION_ID_CACHE_KEY, application_id)
-    get_application_result = SAR_CLIENT.get_application(ApplicationId=application_id)
+    end_time = time.time() + 300
+    while time.time() < end_time:
+        try:
+            if _pipeline_execution_failed(request.config.cache.get(CODEPIPELINE_NAME_CACHE_KEY, ''), execution_id):
+                raise RuntimeError('Pipeline execution failed')
+            SAR_CLIENT.get_application(ApplicationId=TEST_APPLICATION_ID, SemanticVersion='0.0.1')
+        except SAR_CLIENT.exceptions.NotFoundException:
+            time.sleep(10)
+            continue
+        break
+
+    if time.time() >= end_time:
+        raise RuntimeError('Time out')
+
+    get_application_result = SAR_CLIENT.get_application(ApplicationId=TEST_APPLICATION_ID, SemanticVersion='0.0.1')
     assert get_application_result['Author'] == 'John Smith'
     assert get_application_result['Description'] == 'This serverless application is a new demo'
-    assert get_application_result['SpdxLicenseId'] == 'MIT'
-    assert _are_lists_equal(get_application_result['Labels'], ['serverless']) is True
-    assert get_application_result['HomePageUrl'] == 'https://github.com/johnsmith/my-sam-app'
-    assert get_application_result['ReadmeUrl'] is not None
-    assert get_application_result['LicenseUrl'] is not None
     assert get_application_result['Version']['SemanticVersion'] == '0.0.1'
-    assert get_application_result['Version']['SourceCodeUrl'] == 'https://github.com/johnsmith/my-sam-app'
     assert get_application_result['Version']['TemplateUrl'] is not None
 
 
-def _wait_until(predicate, timeout=300, period=1):
-    end_time = time.time() + timeout
-    while time.time() < end_time:
-        if predicate:
-            return
-        time.sleep(period)
-    raise RuntimeError('Time out')
+def _upload_source_zip_to_s3(bucket_name, path):
+    if bucket_name == '':
+        raise RuntimeError('Unable to get source bucket name from cache')
+
+    bucket = S3_RESOURCE.Bucket(bucket_name)
+    bucket.upload_file(Filename=path, Key='testapp.zip')
 
 
-def _upload_source_files_to_s3(bucket_name, path):
-    s3 = boto3.resource('s3')
-    bucket = s3.Bucket(bucket_name)
-
-    for subdir, dirs, files in os.walk(path):
-        for file in files:
-            full_path = os.path.join(subdir, file)
-            with open(full_path, 'rb') as data:
-                bucket.put_object(Key=full_path[len(path) + 1:], Body=data)
-
-
-def _get_application_id(application_name):
-    list_applications_result = SAR_CLIENT.list_applications()
-    application = list(filter(
-        lambda a: a['Name'] == application_name, list_applications_result['Applications']
-    ))[0]
-
-    return application.get('ApplicationId')
+def _empty_bucket(bucket_name):
+    bucket = S3_RESOURCE.Bucket(bucket_name)
+    bucket.object_versions.all().delete()
 
 
 def _are_lists_equal(l1, l2):
     return len(l1) == len(l2) and sorted(l1) == sorted(l2)
+
+
+def _pipeline_execution_failed(name, execution_id):
+    if name == '':
+        raise RuntimeError('Unable to get pipeline name from cache')
+
+    return CODEPIPELINE_CLIENT.get_pipeline_execution(
+                pipelineName=name,
+                pipelineExecutionId=execution_id
+            ).get('pipelineExecution').get('status') == 'Failed'

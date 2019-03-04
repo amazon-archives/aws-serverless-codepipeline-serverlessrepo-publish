@@ -9,5 +9,3 @@ phases:
 artifacts:
   files:
     - .aws-sam/packaged-template.yml
-  name: PackagedTemplate
-  discard-paths: yes

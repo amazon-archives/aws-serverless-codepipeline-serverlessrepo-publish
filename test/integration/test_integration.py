@@ -20,17 +20,17 @@ LOG = logging.getLogger(__name__)
 
 @pytest.fixture(scope='module', autouse=True)
 def setup_and_teardown(request):
-    # try:
-    SAR_CLIENT.create_application(
-            Author='John Smith',
-            Description='This serverless application publishes applications to AWS Serverless Application Repository',
-            HomePageUrl='https://github.com',
-            Name=PUBLISH_APPLICATION_NAME,
-            SemanticVersion='0.0.1',
-            TemplateUrl='https://s3.amazonaws.com/codepipeline-sar-publish-integ-tests/template.yml'
-    )
-    # except Exception:
-    #  LOG.info('Application codepipeline-serverlessrepo-publish-integ-test-only already exists, ready for integ test')
+    try:
+        SAR_CLIENT.create_application(
+                Author='John Smith',
+                Description='This serverless application publishes applications to AWS SAR',
+                HomePageUrl='https://github.com',
+                Name=PUBLISH_APPLICATION_NAME,
+                SemanticVersion='0.0.1',
+                TemplateUrl='https://s3.amazonaws.com/codepipeline-sar-publish-integ-tests/template.yml'
+        )
+    except Exception:
+        LOG.info('Application codepipeline-serverlessrepo-publish-integ-test-only already exists, ready for integ test')
 
     request.config.cache.set(PUBLISH_APPLICATION_ID_CACHE_KEY, _get_application_id(PUBLISH_APPLICATION_NAME))
     _wait_until(
@@ -52,9 +52,9 @@ def setup_and_teardown(request):
     )
     describe_stacks_result = CLOUDFORMATION_CLIENT.describe_stacks(StackName=test_environment_stack_id)
     test_environment_stack_outputs = describe_stacks_result['Stacks'][0]['Outputs']
-    request.config.cache.set(SOURCE_BUCKET_CACHE_KEY, filter(
+    request.config.cache.set(SOURCE_BUCKET_CACHE_KEY, list(filter(
         lambda o: o['OutputKey'] == 'SourceBucketName', test_environment_stack_outputs
-    ).get('OutputValue'))
+    ))[0].get('OutputValue'))
 
     try:
         SAR_CLIENT.delete_application(_get_application_id(TEST_APPLICATION_NAME))
@@ -112,9 +112,11 @@ def _upload_source_files_to_s3(bucket_name, path):
 
 def _get_application_id(application_name):
     list_applications_result = SAR_CLIENT.list_applications()
-    return filter(
+    application = list(filter(
         lambda a: a['Name'] == application_name, list_applications_result['Applications']
-    ).get('ApplicationId')
+    ))[0]
+
+    return application.get('ApplicationId')
 
 
 def _are_lists_equal(l1, l2):

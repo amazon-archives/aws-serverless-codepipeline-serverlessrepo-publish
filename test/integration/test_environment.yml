@@ -1,28 +1,22 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: 'AWS::Serverless-2016-10-31'
-Parameters:
-  SourceS3Key:
-    Default: template.yml
-    Description: The file name of the source artifact
-    Type: String
 
 Resources:
   CodePipelineServerlessRepoPublishApp:
     Type: 'AWS::Serverless::Application'
     Properties:
       Location:
-        ApplicationId: !Sub arn:${AWS::Partition}:serverlessrepo:${AWS::Region}:${AWS::AccountId}:applications/codepipeline-serverlessrepo-publish-app-integ-test-only
+        ApplicationId: ${PUBLISH_APP_ARN}
         SemanticVersion: 0.0.1
       Parameters:
         ArtifactStoreBucket: !Ref ArtifactStoreBucket
 
   Pipeline:
     Type: AWS::CodePipeline::Pipeline
-    DependsOn: CodePipelineServerlessRepoPublishApp
     Properties:
       ArtifactStore:
         Type: S3
-        Location: 
+        Location:
           Ref: ArtifactStoreBucket
       RoleArn: !GetAtt [PipelineRole, Arn]
       Stages:
@@ -36,7 +30,7 @@ Resources:
                 Version: '1'
               Configuration:
                 S3Bucket: !Ref 'SourceBucket'
-                S3ObjectKey: !Ref 'SourceS3Key'
+                S3ObjectKey: testapp.zip
               OutputArtifacts:
                 - Name: SourceArtifact
               RunOrder: '1'
@@ -64,7 +58,7 @@ Resources:
                 Provider: Lambda
                 Version: '1'
               Configuration:
-                FunctionName: !GetAtt CodePipelineServerlessRepoPublishApp.Outputs.ServerlessRepoPublishLambdaFunctionName
+                FunctionName: !GetAtt CodePipelineServerlessRepoPublishApp.Outputs.ServerlessRepoPublishFunctionName
               InputArtifacts:
                 - Name: BuildArtifact
               RunOrder: '1'
@@ -72,13 +66,31 @@ Resources:
   ArtifactStoreBucket:
     Type: AWS::S3::Bucket
     Properties:
-      VersioningConfiguration: 
+      VersioningConfiguration:
         Status: Enabled
+
+  ArtifactStoreBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket:
+        Ref: ArtifactStoreBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Action: ['s3:GetObject']
+          Effect: Allow
+          Principal:
+            Service: 'serverlessrepo.amazonaws.com'
+          Resource: 
+          - !Join
+            - '/'
+            - - !GetAtt ArtifactStoreBucket.Arn
+              - '*'
 
   SourceBucket:
     Type: AWS::S3::Bucket
     Properties:
-      VersioningConfiguration: 
+      VersioningConfiguration:
         Status: Enabled
 
   PipelineRole:
@@ -97,15 +109,23 @@ Resources:
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
-              - Action:
-                - 's3:*'
-                - 'cloudformation:*'
-                - 'codebuild:*'
-                - 'iam:PassRole'
-                - 'sns:Publish'
-                - 'lambda:*'
-                Effect: Allow
-                Resource: '*'
+            - Action:
+              - 'iam:PassRole'
+              - 'sns:Publish'
+              - 's3:*'
+              Effect: Allow
+              Resource: '*'
+            - Effect: Allow
+              Action:
+              - "codebuild:BatchGetBuilds"
+              - "codebuild:StartBuild"
+              Resource:
+              - !GetAtt CICodeBuildProject.Arn
+            - Effect: Allow
+              Action:
+              - "lambda:InvokeFunction"
+              Resource:
+              - !GetAtt CodePipelineServerlessRepoPublishApp.Outputs.ServerlessRepoPublishFunctionArn
 
   CICodeBuildProject:
     Type: AWS::CodeBuild::Project
@@ -156,13 +176,8 @@ Resources:
             - "s3:GetObject"
             - "s3:GetObjectVersion"
             - "s3:ListBucket"
-            Resource: '*'
-          - Effect: Allow
-            Action:
-            - "cloudformation:*"
-            Resource: '*'
-
-Outputs:
-  SourceBucketName:
-    Description: Name of source s3 bucket for triggering integ test pipeline 
-    Value: !Ref SourceBucket
+            Resource:
+            - !Join
+              - ''
+              - - !GetAtt ArtifactStoreBucket.Arn
+                - '*'

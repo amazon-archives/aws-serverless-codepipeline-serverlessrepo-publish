@@ -5,8 +5,7 @@ from botocore.exceptions import ClientError
 from serverlessrepo.exceptions import S3PermissionsRequired
 
 import handler
-from test_constants import mock_codepipeline_event, mock_codepipeline_event_no_artifact_found
-from s3helper import PACKAGED_TEMPLATE
+from test_constants import mock_codepipeline_event, mock_codepipeline_event_more_than_one_input_artifacts
 
 
 @pytest.fixture
@@ -42,13 +41,13 @@ def test_publish(mock_s3helper, mock_codepipelinehelper, mock_serverlessrepo):
     )
 
 
-def test_publish_unable_to_find_artifact(mock_s3helper, mock_codepipelinehelper, mock_serverlessrepo):
-    exception_thrown = RuntimeError('Unable to find the artifact with name ' + PACKAGED_TEMPLATE)
+def test_publish_more_than_one_input_artifacts(mock_s3helper, mock_codepipelinehelper, mock_serverlessrepo):
+    exception_thrown = RuntimeError('You should only have one input artifact. Please check the setting for the action.')
     mock_s3helper.get_input_artifact.side_effect = exception_thrown
 
-    handler.publish(mock_codepipeline_event_no_artifact_found, None)
+    handler.publish(mock_codepipeline_event_more_than_one_input_artifacts, None)
 
-    mock_s3helper.get_input_artifact.assert_called_once_with(mock_codepipeline_event_no_artifact_found)
+    mock_s3helper.get_input_artifact.assert_called_once_with(mock_codepipeline_event_more_than_one_input_artifacts)
     mock_serverlessrepo.assert_not_called()
     mock_codepipelinehelper.put_job_failure.assert_called_once_with(
         'sample-codepipeline-job-id',

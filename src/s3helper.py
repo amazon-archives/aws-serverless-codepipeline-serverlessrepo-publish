@@ -8,8 +8,6 @@ import io
 
 LOG = lambdalogging.getLogger(__name__)
 
-PACKAGED_TEMPLATE = 'BuildArtifact'
-
 
 def get_input_artifact(event):
     """Get the packaged SAM template from CodePipeline S3 Bucket.
@@ -30,7 +28,12 @@ def get_input_artifact(event):
     )
 
     input_artifacts = event['CodePipeline.job']['data']['inputArtifacts']
-    artifact_to_fetch = _find_artifact_in_list(input_artifacts)
+
+    if len(input_artifacts) != 1:
+        raise RuntimeError('You should only have one input artifact. Please check the setting for the action.')
+
+    artifact_to_fetch = input_artifacts[0]
+    LOG.info('artifact_to_fetch=%s', artifact_to_fetch)
 
     artifact_s3_location = artifact_to_fetch['location']['s3Location']
     bucket = artifact_s3_location['bucketName']
@@ -41,27 +44,6 @@ def get_input_artifact(event):
 
     zipped_content_as_bytes = response.get('Body').read()
     return _unzip_as_string(zipped_content_as_bytes)
-
-
-def _find_artifact_in_list(input_artifacts):
-    """Find the artifact named 'PackagedTemplate' in the list of artifacts.
-
-    Arguments:
-        input_artifacts {dict list} -- list of input artifacts
-        https://docs.aws.amazon.com/codepipeline/latest/APIReference/API_Artifact.html
-
-    Raises:
-        RuntimeError -- Raise error if not able to find the artifact
-
-    Returns:
-        dict -- artifact to fetch from S3
-
-    """
-    for artifact in input_artifacts:
-        if artifact['name'] == PACKAGED_TEMPLATE:
-            return artifact
-
-    raise RuntimeError('Unable to find the artifact with name ' + PACKAGED_TEMPLATE)
 
 
 def _unzip_as_string(data):

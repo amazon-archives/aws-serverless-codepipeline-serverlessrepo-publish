@@ -5,7 +5,11 @@ from mock import MagicMock
 from botocore.exceptions import ClientError
 
 import s3helper
-from test_constants import mock_codepipeline_event, mock_codepipeline_event_no_artifact_found
+from test_constants import (
+    mock_codepipeline_event,
+    mock_codepipeline_event_more_than_one_input_artifacts,
+    mock_codepipeline_event_no_input_artifacts
+)
 
 
 @pytest.fixture
@@ -39,12 +43,29 @@ def test_get_input_artifact(mock_boto3, mock_zipfile):
     )
 
 
-def test_get_input_artifact_unable_to_find_artifact(mock_boto3, mock_zipfile):
+def test_get_input_artifact_more_than_one_input_artifacts(mock_boto3, mock_zipfile):
     mock_s3 = MagicMock()
     mock_boto3.client.return_value = mock_s3
 
-    with pytest.raises(RuntimeError, match='Unable to find the artifact with name ' + s3helper.PACKAGED_TEMPLATE):
-        s3helper.get_input_artifact(mock_codepipeline_event_no_artifact_found)
+    with pytest.raises(
+        RuntimeError,
+        match='You should only have one input artifact. Please check the setting for the action.'
+    ):
+        s3helper.get_input_artifact(mock_codepipeline_event_more_than_one_input_artifacts)
+
+    mock_s3.get_object.assert_not_called()
+    mock_zipfile.assert_not_called()
+
+
+def test_get_input_artifact_no_input_artifacts(mock_boto3, mock_zipfile):
+    mock_s3 = MagicMock()
+    mock_boto3.client.return_value = mock_s3
+
+    with pytest.raises(
+        RuntimeError,
+        match='You should only have one input artifact. Please check the setting for the action.'
+    ):
+        s3helper.get_input_artifact(mock_codepipeline_event_no_input_artifacts)
 
     mock_s3.get_object.assert_not_called()
     mock_zipfile.assert_not_called()

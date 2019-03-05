@@ -28,6 +28,21 @@ mock_codepipeline_event = generate_pipeline_event(
             "location": {
                 "s3Location": {
                     "bucketName": "sample-pipeline-artifact-store-bucket",
+                    "objectKey": "sample-artifact-key"
+                },
+                "type": "S3"
+            },
+            "revision": None,
+            "name": "BuildArtifact"
+        }
+    ]
+)
+mock_codepipeline_event_more_than_one_input_artifacts = generate_pipeline_event(
+    [
+        {
+            "location": {
+                "s3Location": {
+                    "bucketName": "sample-pipeline-artifact-store-bucket",
                     "objectKey": "sample-artifact-key1"
                 },
                 "type": "S3"
@@ -48,18 +63,4 @@ mock_codepipeline_event = generate_pipeline_event(
         }
     ]
 )
-mock_codepipeline_event_no_artifact_found = generate_pipeline_event(
-    [
-        {
-            "location": {
-                "s3Location": {
-                    "bucketName": "sample-pipeline-artifact-store-bucket",
-                    "objectKey": "sample-artifact-key1"
-                },
-                "type": "S3"
-            },
-            "revision": None,
-            "name": "NotPackagedTemplate"
-        }
-    ]
-)
+mock_codepipeline_event_no_input_artifacts = generate_pipeline_event([])

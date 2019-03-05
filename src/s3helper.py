@@ -28,8 +28,12 @@ def get_input_artifact(event):
     )
 
     input_artifacts = event['CodePipeline.job']['data']['inputArtifacts']
-    _validate_input_artifacts(input_artifacts)
+
+    if len(input_artifacts) != 1:
+        raise RuntimeError('You should only have one input artifact. Please check the setting for the action.')
+
     artifact_to_fetch = input_artifacts[0]
+    LOG.info('artifact_to_fetch=%s', artifact_to_fetch)
 
     artifact_s3_location = artifact_to_fetch['location']['s3Location']
     bucket = artifact_s3_location['bucketName']
@@ -40,16 +44,6 @@ def get_input_artifact(event):
 
     zipped_content_as_bytes = response.get('Body').read()
     return _unzip_as_string(zipped_content_as_bytes)
-
-
-def _validate_input_artifacts(input_artifacts):
-    """Validate the length of input artifacts list is 1.
-
-    Arguments:
-        input_artifacts {dict list} -- list of input artifacts
-    """
-    if len(input_artifacts) != 1:
-        raise RuntimeError('You should only have one input artifact. Please check the setting for the action.')
 
 
 def _unzip_as_string(data):

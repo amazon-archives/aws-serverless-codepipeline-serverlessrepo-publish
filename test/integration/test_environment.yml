@@ -29,7 +29,7 @@ Resources:
                 Provider: S3
                 Version: '1'
               Configuration:
-                S3Bucket: !Ref 'SourceBucket'
+                S3Bucket: !Ref SourceBucket
                 S3ObjectKey: testapp.zip
               OutputArtifacts:
                 - Name: SourceArtifact
@@ -82,10 +82,9 @@ Resources:
           Principal:
             Service: 'serverlessrepo.amazonaws.com'
           Resource: 
-          - !Join
-            - '/'
-            - - !GetAtt ArtifactStoreBucket.Arn
-              - '*'
+          - !Sub
+            - ${ArtifactStoreBucketArn}/*
+            - { ArtifactStoreBucketArn: !GetAtt ArtifactStoreBucket.Arn }
 
   SourceBucket:
     Type: AWS::S3::Bucket
@@ -111,7 +110,6 @@ Resources:
             Statement:
             - Action:
               - 'iam:PassRole'
-              - 'sns:Publish'
               - 's3:*'
               Effect: Allow
               Resource: '*'
@@ -143,7 +141,7 @@ Resources:
         - Name: PACKAGE_BUCKET
           Value: !Ref ArtifactStoreBucket
         - Name: AWS_DEFAULT_REGION
-          Value: !Sub ${AWS::Region}
+          Value: !Ref AWS::Region
 
   CICodeBuildRole:
     Type: AWS::IAM::Role
@@ -177,7 +175,6 @@ Resources:
             - "s3:GetObjectVersion"
             - "s3:ListBucket"
             Resource:
-            - !Join
-              - ''
-              - - !GetAtt ArtifactStoreBucket.Arn
-                - '*'
+            - !Sub
+              - ${ArtifactStoreBucketArn}*
+              - { ArtifactStoreBucketArn: !GetAtt ArtifactStoreBucket.Arn }

@@ -9,8 +9,8 @@ Metadata:
       a Lambda function that a user could then use as an Invoke action target in their CodePipeline.
     Author: Simon Meng
     SpdxLicenseId: MIT
-    LicenseUrl: ../LICENSE
-    ReadmeUrl: ../README.md
+    LicenseUrl: ../../LICENSE
+    ReadmeUrl: ../../README.md
     Labels: [serverless, codepipeline, serverlessrepo]
     HomePageUrl: https://github.com/awslabs/aws-serverless-codepipeline-serverlessrepo-publish
     SemanticVersion: 0.0.1

@@ -39,6 +39,7 @@ PYTHON := $(shell /usr/bin/which python$(PY_VERSION))
 clean:
 	rm -f $(SRC_DIR)/requirements.txt
 	rm -rf $(SAM_DIR)
+	[ -e test/integration/testdata/testapp.zip ] && rm test/integration/testdata/testapp.zip
 
 # used by CI build to install dependencies
 init:

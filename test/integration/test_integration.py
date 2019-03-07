@@ -34,8 +34,15 @@ CODEPIPELINE_CLIENT = boto3.client('codepipeline')
 @pytest.fixture(scope='module', autouse=True)
 def setup_and_teardown(request):
     def teardown():
-        _empty_bucket(request.config.cache.get(ARTIFACT_STORE_BUCKET_CACHE_KEY, ''))
-        _empty_bucket(request.config.cache.get(SOURCE_BUCKET_CACHE_KEY, ''))
+        try:
+            _empty_bucket(request.config.cache.get(ARTIFACT_STORE_BUCKET_CACHE_KEY, ''))
+        except Exception:
+            LOG.warning('Exception when emptying the CodePipeline artifact store bucket')
+
+        try:
+            _empty_bucket(request.config.cache.get(SOURCE_BUCKET_CACHE_KEY, ''))
+        except Exception:
+            LOG.warning('Exception when emptying the CodePipeline source bucket')
 
         try:
             CLOUDFORMATION_CLIENT.delete_stack(StackName=test_env_stack_name)
@@ -126,7 +133,9 @@ def test_end_to_end(request):
             if _pipeline_execution_failed(request.config.cache.get(CODEPIPELINE_NAME_CACHE_KEY, ''), execution_id):
                 raise RuntimeError('Pipeline execution failed')
             SAR_CLIENT.get_application(ApplicationId=TEST_APPLICATION_ID, SemanticVersion='0.0.1')
-        except SAR_CLIENT.exceptions.NotFoundException:
+        except (
+            SAR_CLIENT.exceptions.NotFoundException, CODEPIPELINE_CLIENT.exceptions.PipelineExecutionNotFoundException
+        ):
             time.sleep(10)
             continue
         break

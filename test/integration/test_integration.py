@@ -36,37 +36,32 @@ def setup_and_teardown(request):
     def teardown():
         try:
             _empty_bucket(request.config.cache.get(ARTIFACT_STORE_BUCKET_CACHE_KEY, ''))
-        except Exception:
-            LOG.warning('Exception when emptying the CodePipeline artifact store bucket')
+        except Exception as e:
+            LOG.warning('Exception when emptying the CodePipeline artifact store bucket=%s', e)
 
         try:
             _empty_bucket(request.config.cache.get(SOURCE_BUCKET_CACHE_KEY, ''))
-        except Exception:
-            LOG.warning('Exception when emptying the CodePipeline source bucket')
+        except Exception as e:
+            LOG.warning('Exception when emptying the CodePipeline source bucket=%s', e)
 
         try:
             CLOUDFORMATION_CLIENT.delete_stack(StackName=test_env_stack_name)
-        except Exception:
-            LOG.warning('Exception when deleting the test environment stack')
+        except Exception as e:
+            LOG.warning('Exception when deleting the test environment stack=%s', e)
 
         try:
             SAR_CLIENT.delete_application(ApplicationId=TEST_APPLICATION_ID)
-        except Exception:
-            LOG.warning('Exception when deleting the test application in SAR')
+        except Exception as e:
+            LOG.warning('Exception when deleting the test application in SAR=%s', e)
 
         try:
             SAR_CLIENT.delete_application(ApplicationId=PUBLISH_APPLICATION_ID)
-        except Exception:
-            LOG.warning('Exception when deleting the SAR auto publish application in SAR')
+        except Exception as e:
+            LOG.warning('Exception when deleting the SAR auto publish application in SAR=%s', e)
 
         LOG.info('Teardown complete')
 
     request.addfinalizer(teardown)
-
-    try:
-        SAR_CLIENT.delete_application(ApplicationId=PUBLISH_APPLICATION_ID)
-    except SAR_CLIENT.exceptions.NotFoundException:
-        LOG.info('SAR Auto Publish app has already been deleted, ready for integ test to start')
 
     SAR_CLIENT.create_application(
             Author='John Smith',
@@ -94,7 +89,7 @@ def setup_and_teardown(request):
         StackName=test_environment_stack_id,
         WaiterConfig={
             'Delay': 10,
-            'MaxAttempts': 30
+            'MaxAttempts': 60
         }
     )
 
@@ -114,8 +109,8 @@ def setup_and_teardown(request):
 
     try:
         SAR_CLIENT.delete_application(ApplicationId=TEST_APPLICATION_ID)
-    except SAR_CLIENT.exceptions.NotFoundException:
-        LOG.info('Application my-sam-app has already been deleted, ready for integ test to start')
+    except SAR_CLIENT.exceptions.NotFoundException as e:
+        LOG.info('Application my-sam-app has already been deleted, ready for integ test to start=%s', e)
     LOG.info('Setup complete')
 
 
@@ -133,15 +128,11 @@ def test_end_to_end(request):
             if _pipeline_execution_failed(request.config.cache.get(CODEPIPELINE_NAME_CACHE_KEY, ''), execution_id):
                 raise RuntimeError('Pipeline execution failed')
             SAR_CLIENT.get_application(ApplicationId=TEST_APPLICATION_ID, SemanticVersion='0.0.1')
+            break
         except (
             SAR_CLIENT.exceptions.NotFoundException, CODEPIPELINE_CLIENT.exceptions.PipelineExecutionNotFoundException
         ):
             time.sleep(10)
-            continue
-        break
-
-    if time.time() >= end_time:
-        raise RuntimeError('Time out')
 
     get_application_result = SAR_CLIENT.get_application(ApplicationId=TEST_APPLICATION_ID, SemanticVersion='0.0.1')
     assert get_application_result['Author'] == 'John Smith'
@@ -163,10 +154,6 @@ def _empty_bucket(bucket_name):
     bucket.object_versions.all().delete()
 
 
-def _are_lists_equal(l1, l2):
-    return len(l1) == len(l2) and sorted(l1) == sorted(l2)
-
-
 def _pipeline_execution_failed(name, execution_id):
     if name == '':
         raise RuntimeError('Unable to get pipeline name from cache')
@@ -174,4 +161,4 @@ def _pipeline_execution_failed(name, execution_id):
     return CODEPIPELINE_CLIENT.get_pipeline_execution(
                 pipelineName=name,
                 pipelineExecutionId=execution_id
-            ).get('pipelineExecution').get('status') == 'Failed'
+            ).get('pipelineExecution', {}).get('status') == 'Failed'

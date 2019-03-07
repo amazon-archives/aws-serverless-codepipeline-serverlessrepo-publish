@@ -7,6 +7,7 @@ SRC_DIR := src
 TEST_DIR := test
 SAM_DIR := .aws-sam
 TEMPLATE_DIR := sam
+TESTAPP_DIR := test/integration/testdata/
 
 # Required environment variables (user must override)
 
@@ -60,7 +61,7 @@ compile:
 integ-test: compile
 	pipenv run sam package --template-file $(SAM_DIR)/build/template.yaml --s3-bucket $(INTEG_TEST_BUCKET) --output-template-file $(SAM_DIR)/packaged-app.yml
 	pipenv run aws s3api put-object --bucket $(INTEG_TEST_BUCKET) --key template.yml --body $(SAM_DIR)/packaged-app.yml
-	cd test/integration/testdata/; [ -e testapp.zip ] && rm testapp.zip; \
+	cd $(TESTAPP_DIR); \
 	zip -r testapp.zip *; cd ../../../	
 	pipenv run py.test --cov=$(SRC_DIR) -s -vv test/integration
 

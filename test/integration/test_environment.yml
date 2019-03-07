@@ -8,8 +8,6 @@ Resources:
       Location:
         ApplicationId: ${PUBLISH_APP_ARN}
         SemanticVersion: 0.0.1
-      Parameters:
-        ArtifactStoreBucket: !Ref ArtifactStoreBucket
 
   Pipeline:
     Type: AWS::CodePipeline::Pipeline
@@ -18,7 +16,7 @@ Resources:
         Type: S3
         Location:
           Ref: ArtifactStoreBucket
-      RoleArn: !GetAtt [PipelineRole, Arn]
+      RoleArn: !GetAtt PipelineRole.Arn
       Stages:
         - Name: Source
           Actions:
@@ -152,8 +150,6 @@ Resources:
         EnvironmentVariables:
         - Name: PACKAGE_BUCKET
           Value: !Ref ArtifactStoreBucket
-        - Name: AWS_DEFAULT_REGION
-          Value: !Ref AWS::Region
 
   CICodeBuildRole:
     Type: AWS::IAM::Role

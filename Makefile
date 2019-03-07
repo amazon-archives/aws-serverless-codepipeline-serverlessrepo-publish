@@ -40,7 +40,7 @@ PYTHON := $(shell /usr/bin/which python$(PY_VERSION))
 clean:
 	rm -f $(SRC_DIR)/requirements.txt
 	rm -rf $(SAM_DIR)
-	[ -e test/integration/testdata/testapp.zip ] && rm test/integration/testdata/testapp.zip
+	rm -f test/integration/testdata/testapp.zip
 
 # used by CI build to install dependencies
 init:
@@ -62,7 +62,7 @@ integ-test: compile
 	pipenv run sam package --template-file $(SAM_DIR)/build/template.yaml --s3-bucket $(INTEG_TEST_BUCKET) --output-template-file $(SAM_DIR)/packaged-app.yml
 	pipenv run aws s3api put-object --bucket $(INTEG_TEST_BUCKET) --key template.yml --body $(SAM_DIR)/packaged-app.yml
 	cd $(TESTAPP_DIR); \
-	zip -r testapp.zip *; cd ../../../	
+	zip -r testapp.zip *; cd -
 	pipenv run py.test --cov=$(SRC_DIR) -s -vv test/integration
 
 build: compile

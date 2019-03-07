@@ -1,0 +1,190 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+
+Resources:
+  CodePipelineServerlessRepoPublishApp:
+    Type: 'AWS::Serverless::Application'
+    Properties:
+      Location:
+        ApplicationId: ${PUBLISH_APP_ARN}
+        SemanticVersion: 0.0.1
+
+  Pipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      ArtifactStore:
+        Type: S3
+        Location:
+          Ref: ArtifactStoreBucket
+      RoleArn: !GetAtt PipelineRole.Arn
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: Source
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Provider: S3
+                Version: '1'
+              Configuration:
+                S3Bucket: !Ref SourceBucket
+                S3ObjectKey: testapp.zip
+              OutputArtifacts:
+                - Name: SourceArtifact
+              RunOrder: '1'
+        - Name: Build
+          Actions:
+            - Name: Build
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              Configuration:
+                ProjectName: !Ref CICodeBuildProject
+              InputArtifacts:
+                - Name: SourceArtifact
+              OutputArtifacts:
+                - Name: BuildArtifact
+              RunOrder: '1'
+        - Name: Deploy
+          Actions:
+            - Name: DeployToServerlessRepo
+              ActionTypeId:
+                Category: Invoke
+                Owner: AWS
+                Provider: Lambda
+                Version: '1'
+              Configuration:
+                FunctionName: !GetAtt CodePipelineServerlessRepoPublishApp.Outputs.ServerlessRepoPublishFunctionName
+              InputArtifacts:
+                - Name: BuildArtifact
+              RunOrder: '1'
+
+  ArtifactStoreBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      VersioningConfiguration:
+        Status: Enabled
+
+  ArtifactStoreBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket:
+        Ref: ArtifactStoreBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Action: ['s3:GetObject']
+          Effect: Allow
+          Principal:
+            Service: 'serverlessrepo.amazonaws.com'
+          Resource: 
+          - !Sub ${ArtifactStoreBucket.Arn}/*
+
+  SourceBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      VersioningConfiguration:
+        Status: Enabled
+
+  PipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Action: ['sts:AssumeRole']
+          Effect: Allow
+          Principal:
+            Service: [codepipeline.amazonaws.com]
+        Version: '2012-10-17'
+      Path: /
+      Policies:
+        - PolicyName: CodePipelineAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+            - Action:
+              - 'iam:PassRole'
+              Effect: Allow
+              Resource: '*'
+            - Effect: Allow
+              Action:
+              - "codebuild:BatchGetBuilds"
+              - "codebuild:StartBuild"
+              Resource:
+              - !GetAtt CICodeBuildProject.Arn
+            - Effect: Allow
+              Action:
+              - "lambda:InvokeFunction"
+              Resource:
+              - !GetAtt CodePipelineServerlessRepoPublishApp.Outputs.ServerlessRepoPublishFunctionArn
+            - Action:
+              - 's3:ListBucket'
+              - 's3:GetBucketVersioning'
+              Effect: Allow
+              Resource:
+              - !Sub ${ArtifactStoreBucket.Arn}
+              - !Sub ${SourceBucket.Arn}
+            - Action:
+              - 's3:PutObject'
+              - 's3:GetObject'
+              - 's3:GetObjectVersion'
+              Effect: Allow
+              Resource:
+              - !Sub ${ArtifactStoreBucket.Arn}/*
+              - !Sub ${SourceBucket.Arn}/*
+
+  CICodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      ServiceRole: !GetAtt CICodeBuildRole.Arn
+      Source:
+        Type: CODEPIPELINE
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/python:3.7.1
+        Type: LINUX_CONTAINER
+        EnvironmentVariables:
+        - Name: PACKAGE_BUCKET
+          Value: !Ref ArtifactStoreBucket
+
+  CICodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - "codebuild.amazonaws.com"
+          Action:
+          - "sts:AssumeRole"
+      Path: /service-role/
+      Policies:
+      - PolicyName: CICodeBuildRolePolicy
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+          - Effect: Allow
+            Action:
+            - "logs:CreateLogGroup"
+            - "logs:CreateLogStream"
+            - "logs:PutLogEvents"
+            Resource:
+            - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/*
+          - Effect: Allow
+            Action:
+            - "s3:PutObject"
+            - "s3:GetObject"
+            - "s3:GetObjectVersion"
+            Resource:
+            - !Sub ${ArtifactStoreBucket.Arn}/*
+          - Effect: Allow
+            Action:
+            - "s3:ListBucket"
+            Resource:
+            - !Sub ${ArtifactStoreBucket.Arn}

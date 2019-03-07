@@ -7,11 +7,14 @@ SRC_DIR := src
 TEST_DIR := test
 SAM_DIR := .aws-sam
 TEMPLATE_DIR := sam
+TESTAPP_DIR := test/integration/testdata/
 
 # Required environment variables (user must override)
 
 # S3 bucket used for packaging SAM templates
 PACKAGE_BUCKET ?= aws-sar-publishing
+INTEG_TEST_BUCKET ?= codepipeline-sar-publish-integ-tests
+
 
 # user can optionally override the following by setting environment variables with the same names before running make
 
@@ -37,6 +40,7 @@ PYTHON := $(shell /usr/bin/which python$(PY_VERSION))
 clean:
 	rm -f $(SRC_DIR)/requirements.txt
 	rm -rf $(SAM_DIR)
+	rm -f test/integration/testdata/testapp.zip
 
 # used by CI build to install dependencies
 init:
@@ -54,8 +58,12 @@ compile:
 	pipenv lock --requirements > $(SRC_DIR)/requirements.txt
 	pipenv run sam build -t $(TEMPLATE_DIR)/app.yml -m $(SRC_DIR)/requirements.txt --debug
 
-integ-test:
-	pipenv run py.test --cov=$(SRC_DIR) --cov-fail-under=85 -vv test/integration
+integ-test: compile
+	pipenv run sam package --template-file $(SAM_DIR)/build/template.yaml --s3-bucket $(INTEG_TEST_BUCKET) --output-template-file $(SAM_DIR)/packaged-app.yml
+	pipenv run aws s3api put-object --bucket $(INTEG_TEST_BUCKET) --key template.yml --body $(SAM_DIR)/packaged-app.yml
+	cd $(TESTAPP_DIR); \
+	zip -r testapp.zip *; cd -
+	pipenv run py.test --cov=$(SRC_DIR) -s -vv test/integration
 
 build: compile
 

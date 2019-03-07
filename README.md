@@ -1,25 +1,25 @@
 ## AWS Serverless Codepipeline Serverlessrepo Publish ![Build Status](https://codebuild.us-east-1.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiRWVJS0x2ZFJGMTJYZWVKWHRxZXQzV3dHYlM4enJPc3k3bno4cmZRMmtwQkR5dGRSYUp1bDF3bnNHUE1NV1JpTHpTWC9KZ1Q4YmhtcG5aOXdNVWd4U2ZBPSIsIml2UGFyYW1ldGVyU3BlYyI6IlVhNGJ2dXlnZG1kbHJLS2siLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=master)
 
-This is a serverless app that publishes applications to AWS Serverless Application Repository. This app creates a Lambda function that a user could then use as an Invoke action target in their CodePipeline.
+This is a serverless app that publishes applications to AWS Serverless Application Repository (SAR). This app contains a Lambda function that a user can then use as an Invoke action target in their CodePipeline. To use this app, please refer to the tutorial [here](https://docs.aws.amazon.com/codepipeline/latest/userguide/tutorials-serverlessrepo-auto-publish.html).
 
 ## Architecture
 
 ![App Architecture](https://github.com/awslabs/aws-serverless-codepipeline-serverlessrepo-publish/raw/master/app-architecture.png)
 
-1. App has a single Lambda function ServerlessRepoPublish lambda.
-1. ServerlessRepoPublish lambda is invoked by CodePipeline as part of the Invoke Action of a pipeline.
-1. ServerlessRepoPublish lambda is passed the S3 URL of the packaged SAM template in the CodePipeline S3 bucket.
-1. ServerlessRepoPublish lambda downloads the template and parses its Metadata to get application information for calls to CreateApplication/UpdateApplication. 
-1. ServerlessRepoPublish lambda then does the create or update job processor logic:
-   1. Call [AcknowledgeJob](https://docs.aws.amazon.com/codepipeline/latest/APIReference/API_AcknowledgeJob.html) API to claim the job.
-   1. Read SAM template and parse application metadata.
-   1. Call [CreateApplication](https://docs.aws.amazon.com/serverlessrepo/latest/devguide/applications.html) API with metadata and pass SAM template with semantic version from template metadata.
-   1. If success, call [PutJobSuccessResult](https://docs.aws.amazon.com/codepipeline/latest/APIReference/API_PutJobSuccessResult.html)
-   1. If application already exists
-      1. Call [GetApplication](https://docs.aws.amazon.com/serverlessrepo/latest/devguide/applications-applicationid.html) - Application ARN can be parsed from the 4xx error message. NOTE: This isn't the cleanest solution, but it doesn't require an API change to SAR.
-      1. Call [UpdateApplication](https://docs.aws.amazon.com/serverlessrepo/latest/devguide/applications-applicationid.html) if any metadata has changed
-      1. Call [CreateApplicationVersion](https://docs.aws.amazon.com/serverlessrepo/latest/devguide/applications-applicationid-versions-semanticversion.html) with SAM template. If it already exists, do nothing.
-   1. If API calls fail for any other reason, call [PutJobFailureResult](https://docs.aws.amazon.com/codepipeline/latest/APIReference/API_PutJobFailureResult.html) with failure details.
+1. App has a single Lambda function ServerlessRepoPublish lambda. It uses convenience helpers from the [serverlessrepo](https://pypi.org/project/serverlessrepo/) python module to publish applications to SAR.
+2. ServerlessRepoPublish lambda is invoked by CodePipeline as part of the Invoke Action of a pipeline.
+   1. ServerlessRepoPublish lambda is invoked with the [CodePipeline JSON event](https://docs.aws.amazon.com/codepipeline/latest/userguide/actions-invoke-lambda-function.html#actions-invoke-lambda-function-json-event-example) and then gets the S3 location of the packaged SAM template in the event.
+   2. It gets the packaged SAM template from CodePipeline S3 bucket
+   3. It calls serverlessrepo.publish_application() with the packaged template. This call will first parse the [Metadata section](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-template-publishing-applications-metadata-properties.html) of the template and then make corresponding API calls to SAR. Below is the code logic done in serverlessrepo.publish_application():
+      1. Parse the Metadata section of the packaged SAM template and get the application metadata
+      2. Call SAR [CreateApplication](https://docs.aws.amazon.com/cli/latest/reference/serverlessrepo/create-application.html) API with the application metadata
+         1. If the application already exists
+            1. Get the application id from the 4xx error message
+            2. Call SAR [UpdateApplication](https://docs.aws.amazon.com/cli/latest/reference/serverlessrepo/update-application.html) API with the application metadata
+            3. Call SAR [CreateApplicationVersion](https://docs.aws.amazon.com/cli/latest/reference/serverlessrepo/create-application-version.html) API with the application metadata if SemanticVersion is specified in the Metadata section of the template
+   4. Get the job id from the CodePipeline invoke event
+   5. Call CodePipeline [PutJobSuccessResult](https://docs.aws.amazon.com/codepipeline/latest/APIReference/API_PutJobSuccessResult.html) API with job id if succeed. Otherwise, call CodePipeline [PutJobFailureResult](https://docs.aws.amazon.com/codepipeline/latest/APIReference/API_PutJobFailureResult.html) API with job id and failure details from serverlessrepo.publish_application()
+
 
 ## License Summary
 

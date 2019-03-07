@@ -21,9 +21,6 @@ Parameters:
     Type: String
     Description: Log level for Lambda function logging, e.g., ERROR, INFO, DEBUG, etc
     Default: INFO
-  ArtifactStoreBucket:
-    Type: String
-    Description: The S3 bucket name that CodePipeline uses to store artifacts
 
 Resources:
   ServerlessRepoPublish:
@@ -39,8 +36,6 @@ Resources:
         Variables:
           LOG_LEVEL: !Ref LogLevel
       Policies:
-        - S3ReadPolicy:
-            BucketName: !Ref ArtifactStoreBucket
         - Version: '2012-10-17'
           Statement:
             - Effect: 'Allow'
@@ -57,3 +52,11 @@ Resources:
                 - serverlessrepo:UpdateApplication
               Resource:
                 !Sub 'arn:${AWS::Partition}:serverlessrepo:${AWS::Region}:${AWS::AccountId}:applications/*'
+
+Outputs:
+  ServerlessRepoPublishFunctionName:
+    Description: Name of ServerlessRepoPublish lambda function
+    Value: !Ref ServerlessRepoPublish
+  ServerlessRepoPublishFunctionArn:
+    Description: ARN of ServerlessRepoPublish lambda function
+    Value: !GetAtt ServerlessRepoPublish.Arn

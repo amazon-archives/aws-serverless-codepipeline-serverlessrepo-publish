@@ -23,4 +23,4 @@ This is a serverless app that publishes applications to AWS Serverless Applicati
 
 ## License Summary
 
-This sample code is made available under the MIT license. 
+This sample code is made available under the MIT license.

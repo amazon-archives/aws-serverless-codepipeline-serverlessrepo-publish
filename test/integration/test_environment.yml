@@ -82,9 +82,7 @@ Resources:
           Principal:
             Service: 'serverlessrepo.amazonaws.com'
           Resource: 
-          - !Sub
-            - ${ArtifactStoreBucketArn}/*
-            - { ArtifactStoreBucketArn: !GetAtt ArtifactStoreBucket.Arn }
+          - !Sub ${ArtifactStoreBucket.Arn}/*
 
   SourceBucket:
     Type: AWS::S3::Bucket
@@ -110,7 +108,6 @@ Resources:
             Statement:
             - Action:
               - 'iam:PassRole'
-              - 's3:*'
               Effect: Allow
               Resource: '*'
             - Effect: Allow
@@ -124,6 +121,21 @@ Resources:
               - "lambda:InvokeFunction"
               Resource:
               - !GetAtt CodePipelineServerlessRepoPublishApp.Outputs.ServerlessRepoPublishFunctionArn
+            - Action:
+              - 's3:ListBucket'
+              - 's3:GetBucketVersioning'
+              Effect: Allow
+              Resource:
+              - !Sub ${ArtifactStoreBucket.Arn}
+              - !Sub ${SourceBucket.Arn}
+            - Action:
+              - 's3:PutObject'
+              - 's3:GetObject'
+              - 's3:GetObjectVersion'
+              Effect: Allow
+              Resource:
+              - !Sub ${ArtifactStoreBucket.Arn}/*
+              - !Sub ${SourceBucket.Arn}/*
 
   CICodeBuildProject:
     Type: AWS::CodeBuild::Project
@@ -173,8 +185,10 @@ Resources:
             - "s3:PutObject"
             - "s3:GetObject"
             - "s3:GetObjectVersion"
+            Resource:
+            - !Sub ${ArtifactStoreBucket.Arn}/*
+          - Effect: Allow
+            Action:
             - "s3:ListBucket"
             Resource:
-            - !Sub
-              - ${ArtifactStoreBucketArn}*
-              - { ArtifactStoreBucketArn: !GetAtt ArtifactStoreBucket.Arn }
+            - !Sub ${ArtifactStoreBucket.Arn}

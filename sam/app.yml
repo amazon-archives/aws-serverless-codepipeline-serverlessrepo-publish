@@ -7,14 +7,14 @@ Metadata:
     Description: >-
       This serverless application publishes applications to AWS Serverless Application Repository. This app creates
       a Lambda function that a user could then use as an Invoke action target in their CodePipeline.
-    Author: Simon Meng
+    Author: AWS Serverless Application Repository
     SpdxLicenseId: MIT
     LicenseUrl: ../../LICENSE
     ReadmeUrl: ../../README.md
     Labels: [serverless, codepipeline, serverlessrepo]
     HomePageUrl: https://github.com/awslabs/aws-serverless-codepipeline-serverlessrepo-publish
-    SemanticVersion: 0.0.1
-    SourceCodeUrl: https://github.com/awslabs/aws-serverless-codepipeline-serverlessrepo-publish
+    SemanticVersion: 1.0.0
+    SourceCodeUrl: https://github.com/awslabs/aws-serverless-codepipeline-serverlessrepo-publish/tree/1.0.0
 
 Parameters:
   LogLevel:

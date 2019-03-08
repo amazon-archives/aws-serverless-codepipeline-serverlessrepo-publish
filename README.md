@@ -6,14 +6,14 @@ This is a serverless app that provides automated publishing of serverless applic
 
 ![App Architecture](https://github.com/awslabs/aws-serverless-codepipeline-serverlessrepo-publish/raw/master/images/app-architecture.png)
 
-App has a single Lambda function ServerlessRepoPublish lambda. It uses convenience helpers from the [serverlessrepo](https://pypi.org/project/serverlessrepo/) python module to publish applications to SAR.
+This app contains a single Lambda function: ServerlessRepoPublish. It uses convenience helpers from the [serverlessrepo](https://pypi.org/project/serverlessrepo/) python module to publish applications to SAR.
 
 1. A code change is made to a serverless application and pushed to the source repository, which is the source provider of the CodePipeline pipeline.
 2. The code change flows through the pipeline and outputs a packaged SAM template as a stage output.
 3. ServerlessRepoPublish lambda is invoked by CodePipeline as part of the Invoke Action of the pipeline.
 4. ServerlessRepoPublish lambda gets the packaged SAM template from CodePipeline artifact store S3 bucket.
 5. ServerlessRepoPublish lambda calls serverlessrepo.publish_application() with the packaged template as input. It will perform either create or update logic for the serverless application. See [here](https://pypi.org/project/serverlessrepo/) for details on the python module behavior.
-6. ServerlessRepoPublish lambda calls CodePipeline [PutJobSuccessResult](https://docs.aws.amazon.com/codepipeline/latest/APIReference/API_PutJobSuccessResult.html) API with job id if succeed. Otherwise, call CodePipeline [PutJobFailureResult](https://docs.aws.amazon.com/codepipeline/latest/APIReference/API_PutJobFailureResult.html) API with job id and failure details from serverlessrepo.publish_application()
+6. ServerlessRepoPublish lambda calls CodePipeline [PutJobSuccessResult](https://docs.aws.amazon.com/codepipeline/latest/APIReference/API_PutJobSuccessResult.html) API with job id if publish is successful. Otherwise, call CodePipeline [PutJobFailureResult](https://docs.aws.amazon.com/codepipeline/latest/APIReference/API_PutJobFailureResult.html) API with job id and failure details from serverlessrepo.publish_application()
 
 ## Installation Instructions
 

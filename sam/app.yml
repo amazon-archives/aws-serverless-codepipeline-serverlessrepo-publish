@@ -13,8 +13,8 @@ Metadata:
     ReadmeUrl: ../../README.md
     Labels: [serverless, codepipeline, serverlessrepo]
     HomePageUrl: https://github.com/awslabs/aws-serverless-codepipeline-serverlessrepo-publish
-    SemanticVersion: 1.0.0
-    SourceCodeUrl: https://github.com/awslabs/aws-serverless-codepipeline-serverlessrepo-publish/tree/1.0.0
+    SemanticVersion: 1.0.1
+    SourceCodeUrl: https://github.com/awslabs/aws-serverless-codepipeline-serverlessrepo-publish/tree/1.0.1
 
 Parameters:
   LogLevel:
@@ -52,7 +52,13 @@ Resources:
                 - serverlessrepo:UpdateApplication
               Resource:
                 !Sub 'arn:${AWS::Partition}:serverlessrepo:${AWS::Region}:${AWS::AccountId}:applications/*'
-
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: 'Allow'
+              Action:
+                - serverlessrepo:GetApplication
+              Resource:
+                !Sub 'arn:${AWS::Partition}:serverlessrepo:*:*:applications/*'
 Outputs:
   ServerlessRepoPublishFunctionName:
     Description: Name of ServerlessRepoPublish lambda function

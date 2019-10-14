@@ -13,8 +13,8 @@ Metadata:
     ReadmeUrl: ../../README.md
     Labels: [serverless, codepipeline, serverlessrepo]
     HomePageUrl: https://github.com/awslabs/aws-serverless-codepipeline-serverlessrepo-publish
-    SemanticVersion: 1.0.0
-    SourceCodeUrl: https://github.com/awslabs/aws-serverless-codepipeline-serverlessrepo-publish/tree/1.0.0
+    SemanticVersion: 1.0.1
+    SourceCodeUrl: https://github.com/awslabs/aws-serverless-codepipeline-serverlessrepo-publish/tree/1.0.1
 
 Parameters:
   LogLevel:
@@ -50,6 +50,7 @@ Resources:
                 - serverlessrepo:CreateApplication
                 - serverlessrepo:CreateApplicationVersion
                 - serverlessrepo:UpdateApplication
+                - serverlessrepo:GetApplication
               Resource:
                 !Sub 'arn:${AWS::Partition}:serverlessrepo:${AWS::Region}:${AWS::AccountId}:applications/*'
 

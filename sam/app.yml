@@ -50,10 +50,15 @@ Resources:
                 - serverlessrepo:CreateApplication
                 - serverlessrepo:CreateApplicationVersion
                 - serverlessrepo:UpdateApplication
-                - serverlessrepo:GetApplication
               Resource:
                 !Sub 'arn:${AWS::Partition}:serverlessrepo:${AWS::Region}:${AWS::AccountId}:applications/*'
-
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: 'Allow'
+              Action:
+                - serverlessrepo:GetApplication
+              Resource:
+                !Sub 'arn:${AWS::Partition}:serverlessrepo:*:*:applications/*'
 Outputs:
   ServerlessRepoPublishFunctionName:
     Description: Name of ServerlessRepoPublish lambda function
